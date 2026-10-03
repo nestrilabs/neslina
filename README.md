@@ -52,4 +52,8 @@ and a GPU driver version we have actually tested.
 
 Design. Nothing builds yet. Read [`docs/DESIGN.md`](docs/DESIGN.md).
 
-This repository is private.
+## License
+
+Open source. The image ships the Linux kernel and other GPL software, so its
+source has to be public anyway. The exact license for our own code is not
+decided yet.

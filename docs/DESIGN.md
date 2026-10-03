@@ -178,7 +178,7 @@ until someone needs it.
 
 ## 12. Milestones
 
-1. **Bootable image:** mkosi build, UKI, verity root, boots on nestripc-1 into
+1. **Bootable image:** mkosi build, UKI, verity root, boots on a build host into
    neslet, nothing else. Reproducible from one command in CI.
 2. **Runs a box:** nesbox + GPU stack in the image; a guest renders a frame on
    the GPU test boxes.
@@ -191,6 +191,8 @@ until someone needs it.
 
 ## 13. Open questions (summary)
 
+- License for our own code, and how the NVIDIA kernel module is shipped
+  (prebuilt in the image vs. built on the host)
 - Base build system (mkosi vs. Yocto vs. Bottlerocket fork)
 - Whether BYO hosts serve other teams, which decides how early attestation lands
 - Recovery path when a BYO host is offline
