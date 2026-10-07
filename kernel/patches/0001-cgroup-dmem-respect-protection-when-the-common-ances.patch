@@ -1,0 +1,48 @@
+From f2d47e47a9bd869b2886faa74d91012a8e7a0502 Mon Sep 17 00:00:00 2001
+From: DatCaptainHorse <kristian@nestri.io>
+Date: Wed, 7 Oct 2026 19:04:50 +0300
+Subject: [PATCH] cgroup/dmem: respect protection when the common ancestor is
+ the root
+
+ttm_bo_evict_cb() passes the common ancestor of the evicting and the
+evicted cgroup as the limit pool, so that protection is computed for
+the subtree the two share. For two cgroups that are both children of
+the root, that ancestor is the root pool, and
+dmem_cgroup_state_evict_valuable() returns true for it straight away:
+the shortcut for a limit pool without a parent predates the
+allocation-time protection series, when a limit pool could only come
+from a cgroup that hit its dmem.max, which the root has none of.
+
+The result is that dmem.min and dmem.low protect nothing between
+siblings at the top level. Measured on an RX 9060 XT with three
+cgroups under the root, dmem.min 4012 MiB each: A held 11 GiB, then B
+and C allocated 4000 MiB each, one after the other. C's allocation
+evicted 750 MiB of B, under its min, while A sat 5 GiB above its own.
+
+Drop the shortcut. The ancestor walk below it already finds the root
+as an ancestor of every pool, and dmem_cgroup_calculate_protection()
+then gives the root's children their own min and low as effective
+protection, which is what the same cgroups get one level down.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ kernel/cgroup/dmem.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/kernel/cgroup/dmem.c b/kernel/cgroup/dmem.c
+index 1ab60f524213..db0de1df5a34 100644
+--- a/kernel/cgroup/dmem.c
++++ b/kernel/cgroup/dmem.c
+@@ -312,9 +312,6 @@ bool dmem_cgroup_state_evict_valuable(struct dmem_cgroup_pool_state *limit_pool,
+ 		return true;
+ 
+ 	if (limit_pool) {
+-		if (!parent_dmemcs(limit_pool->cs))
+-			return true;
+-
+ 		for (pool = test_pool; pool && limit_pool != pool; pool = pool_parent(pool))
+ 			{}
+ 
+-- 
+2.56.0
+
