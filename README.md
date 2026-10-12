@@ -42,18 +42,31 @@ and DHCP on the network.
 
 ## Status
 
-Design. Nothing builds yet. Read [`docs/DESIGN.md`](docs/DESIGN.md).
+Milestone 1: a generic build boots in QEMU from a USB stick image, with no
+bootloader. It runs from RAM and gets a DHCP address. Install, native builds and
+the GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Trying it
 
-`scripts/vm.sh` runs a QEMU VM with UEFI firmware, the boot medium as a USB
-stick, an empty state disk and the serial console on your terminal. It needs
-QEMU, OVMF, mtools and util-linux.
+`scripts/build-image.sh` builds a slot: the kernel as one EFI file and the root
+image it boots. `scripts/vm.sh` runs a QEMU VM with UEFI firmware, the slot on a
+USB stick image, an empty state disk and the serial console on your terminal.
+
+They need clang and lld, Rust, erofs-utils, QEMU, OVMF, mtools and util-linux.
+The first build clones and patches the kernel into `output/linux`.
 
 ```bash
-scripts/vm.sh stick path/to/kernel.efi
+scripts/build-image.sh
+```
+```bash
+scripts/vm.sh stick-slot rescue
+```
+```bash
 scripts/vm.sh run
 ```
+
+In the VM, `Ctrl-a c` opens the QEMU monitor; `sendkey ctrl-alt-delete` there
+reboots the host cleanly, and `Ctrl-a x` quits.
 
 ## License
 

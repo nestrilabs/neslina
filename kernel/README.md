@@ -1,13 +1,22 @@
 # Host kernel patches
 
-Patches the host kernel needs that no distro kernel carries yet. Until neslina
-builds its own image these are applied by hand to a test host; once it does,
-they are part of its kernel build. Each one should also go upstream: carrying a
+Patches the host kernel needs that no distro kernel carries yet. They are part
+of neslina's kernel build, and are also applied by hand to test hosts that
+don't run neslina yet. Each one should also go upstream: carrying a
 patch here is a stopgap, not the goal.
 
 Base: CachyOS `cachyos-7.2.9-1` (<https://github.com/CachyOS/linux>).
 
-## Working on them
+## Config
+
+`config/neslina.config` is the curated config, applied on top of
+`x86_64_defconfig`. `config/generic.config` (x86-64-v3, for CI and the rescue
+slot) or `config/native.config` (`CONFIG_X86_NATIVE_CPU`) goes on top of that.
+`scripts/build-image.sh` merges them, runs `olddefconfig`, and fails if any line
+of a fragment did not survive, so a dropped dependency cannot change the
+kernel silently.
+
+## Working on the patches
 
 The patches are `git format-patch` output from a branch on that tag. The tree
 lives under `output/`, which git ignores:

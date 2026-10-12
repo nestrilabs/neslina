@@ -2,7 +2,10 @@
 # Test VM for neslina: UEFI firmware, the boot medium as a USB stick, an empty
 # state disk, serial console on the terminal.
 #
-#   scripts/vm.sh stick <file.efi>   write a GPT stick image with the file as EFI/BOOT/BOOTX64.EFI
+#   scripts/vm.sh stick <file.efi> [file...]
+#                                    write a GPT stick image with the EFI file as EFI/BOOT/BOOTX64.EFI
+#                                    and every file (the EFI file too) in neslina/
+#   scripts/vm.sh stick-slot <slot>  the same, for a slot made by scripts/build-image.sh
 #   scripts/vm.sh run                boot the VM (Ctrl-a x quits, Ctrl-a c opens the QEMU monitor)
 #   scripts/vm.sh reset-nvram        start again from empty UEFI variables
 #
@@ -56,8 +59,10 @@ find_ovmf() {
 # A real stick is GPT with one ESP, so the image is too. mtools writes the FAT
 # filesystem at the partition's offset, so no loop device or root is needed.
 make_stick() {
-	local efi=$1
-	[[ -f $efi ]] || die "$efi does not exist"
+	local efi=$1 f
+	for f in "$@"; do
+		[[ -f $f ]] || die "$f does not exist"
+	done
 	mkdir -p "$dir"
 	rm -f "$stick"
 	truncate -s 1G "$stick"
@@ -69,7 +74,8 @@ make_stick() {
 	mformat -i "$img" -F -v NESLINA -T $((1000 * 2048)) ::
 	mmd -i "$img" ::/EFI ::/EFI/BOOT ::/neslina
 	mcopy -i "$img" "$efi" ::/EFI/BOOT/BOOTX64.EFI
-	echo "wrote $stick with $efi as EFI/BOOT/BOOTX64.EFI"
+	mcopy -i "$img" "$@" ::/neslina/
+	echo "wrote $stick: $efi as EFI/BOOT/BOOTX64.EFI, and $# file(s) in neslina/"
 }
 
 run() {
@@ -105,8 +111,14 @@ run() {
 
 case ${1:-} in
 stick)
-	[[ $# -eq 2 ]] || die "usage: scripts/vm.sh stick <file.efi>"
-	make_stick "$2"
+	[[ $# -ge 2 ]] || die "usage: scripts/vm.sh stick <file.efi> [file...]"
+	shift
+	make_stick "$@"
+	;;
+stick-slot)
+	[[ $# -eq 2 ]] || die "usage: scripts/vm.sh stick-slot <slot>"
+	slot_dir=$repo/output/image/$2
+	make_stick "$slot_dir/$2.efi" "$slot_dir/$2.erofs"
 	;;
 run) run ;;
 reset-nvram)
@@ -115,5 +127,5 @@ reset-nvram)
 	cp "$OVMF_VARS" "$vars"
 	echo "reset $vars"
 	;;
-*) die "usage: scripts/vm.sh stick <file.efi> | run | reset-nvram" ;;
+*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot> | run | reset-nvram" ;;
 esac

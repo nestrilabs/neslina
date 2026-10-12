@@ -1,0 +1,12 @@
+[package]
+name = "neslina-init"
+description = "PID 1: mounts, starts and supervises services, reaps, shuts down in order"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+neslina-common.workspace = true

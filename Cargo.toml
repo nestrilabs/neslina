@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/common", "crates/stage1", "crates/init", "crates/net"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/nestrilabs/neslina"
+
+[workspace.dependencies]
+anyhow = "1"
+libc = "0.2"
+sha2 = "0.10"
+
+neslina-common = { path = "crates/common" }
+
+# PID 1 and stage 1 must not unwind: a panic there is a kernel panic either way,
+# and abort keeps the binaries smaller.
+[profile.release]
+panic = "abort"
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,13 @@
+[package]
+name = "neslina-stage1"
+description = "The built-in initramfs: finds the slot's root image, checks it, copies it to RAM and switches to it"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+sha2.workspace = true
+neslina-common.workspace = true
