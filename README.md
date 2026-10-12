@@ -44,8 +44,17 @@ and DHCP on the network.
 
 Design. Nothing builds yet. Read [`docs/DESIGN.md`](docs/DESIGN.md).
 
+## Trying it
+
+`scripts/vm.sh` runs a QEMU VM with UEFI firmware, the boot medium as a USB
+stick, an empty state disk and the serial console on your terminal. It needs
+QEMU, OVMF, mtools and util-linux.
+
+```bash
+scripts/vm.sh stick path/to/kernel.efi
+scripts/vm.sh run
+```
+
 ## License
 
-Open source. The image ships the Linux kernel and other GPL software, so its
-source has to be public anyway. The exact license for our own code is not
-decided yet.
+Apache-2.0, the same as the main Nestri repository. See [`LICENSE`](LICENSE).

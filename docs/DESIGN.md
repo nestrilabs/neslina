@@ -153,7 +153,7 @@ for Unraid or Cockpit.
 Building is split by what gains from native code:
 
 - **Prebuilt (by CI, shipped as one `sysroot.erofs`):**
-  - LLVM, clang and lld; mold;
+  - LLVM, clang and lld 23.1; mold 3.0;
   - rustc and cargo;
   - glibc;
   - build tools: Python and meson, ninja, cmake, Perl, pkgconf, bison, flex
@@ -166,7 +166,13 @@ Building is split by what gains from native code:
   The rest is built natively because it costs little, not because it is
   measured to help.
 
+The first sysroot is built in an ordinary distro container in CI. That
+container exists only at build time and nothing from it ships. Once neslina can
+build its own sysroot, it takes over.
+
 ### Toolchain rules
+
+- The kernel and userspace use the same LLVM.
 
 - Kernel and kernel modules (including NVIDIA's): `LLVM=1`, linked with
   `ld.lld`. Clang LTO requires lld (`HAS_LTO_CLANG` depends on `LD_IS_LLD`),
@@ -202,6 +208,9 @@ flags differ.
 - **Config:** one curated headless config plus `CONFIG_X86_NATIVE_CPU`.
   Everything the host needs is built in, so there is no module loading except
   NVIDIA's. Patches live in `kernel/patches/` (see `kernel/README.md`).
+- **`CONFIG_RUST` off.** `X86_NATIVE_CPU` depends on `!RUST || RUSTC_HAS_APXF`,
+  and the host needs none of the Rust drivers. The config sets it explicitly
+  rather than inheriting CachyOS's choice.
 
 What it must provide, from what nesbox uses:
 
@@ -273,8 +282,8 @@ docs/
 ## 10. Milestones
 
 1. **Boots in QEMU.** CI-style generic build of the kernel, stage 1 and init.
-   The VM uses OVMF and boots straight from an EFI file. It gets a DHCP
-   address and logs to serial.
+   `scripts/vm.sh` boots it with OVMF from a USB stick image, with no
+   bootloader. It gets a DHCP address and logs to serial.
 2. **Install in QEMU.** Setup UI, disk assignment, unpacking the sysroot, a
    native kernel build, slot A tried with `BootNext` and marked good. Rollback
    proven by installing a slot that fails on purpose and checking that the
