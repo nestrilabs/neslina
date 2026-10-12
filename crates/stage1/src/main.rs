@@ -17,12 +17,12 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use neslina_common::medium;
 use neslina_common::sys::{self, mount, umount};
+use neslina_common::watchdog::Watchdog;
 use neslina_common::{error, info, warn};
 use sha2::{Digest, Sha256};
 
-/// GPT partition name of the boot medium, on a USB stick or an internal disk.
-const MEDIUM_PARTNAME: &str = "NESLINA";
 /// Written into the initramfs by the image build: which slot this kernel is,
 /// and the hash of the root image built with it.
 const SLOT_FILE: &str = "/neslina/slot";
@@ -35,10 +35,15 @@ const NEWROOT: &str = "/newroot";
 const RAM: &str = "/ram";
 const RAM_IMAGE: &str = "/ram/root.erofs";
 const MEDIUM_TIMEOUT: Duration = Duration::from_secs(30);
+/// Covers finding the medium and copying the image from a slow USB stick.
+const WATCHDOG_TIMEOUT: Duration = Duration::from_secs(120);
 
 struct Slot {
     name: String,
     sha256: String,
+    /// Set only by `build-image.sh --broken hang`: stop here so the watchdog
+    /// has to reset the board, which is how rollback from a hang is tested.
+    hang: bool,
 }
 
 fn main() {
@@ -56,7 +61,15 @@ fn run() -> Result<()> {
     mount("sysfs", "/sys", "sysfs", libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC, None)
         .context("mounting /sys")?;
 
+    // Held until exec, which closes it and leaves it running for init.
+    let _watchdog = Watchdog::open(WATCHDOG_TIMEOUT);
     let slot = read_slot()?;
+    if slot.hang {
+        warn!("slot {} is built to hang; waiting for the watchdog", slot.name);
+        loop {
+            std::thread::sleep(Duration::from_secs(3600));
+        }
+    }
     info!("slot {}, looking for the boot medium", slot.name);
 
     let dev = wait_for_medium()?;
@@ -96,16 +109,17 @@ fn run() -> Result<()> {
 
 fn read_slot() -> Result<Slot> {
     let text = fs::read_to_string(SLOT_FILE).with_context(|| format!("reading {SLOT_FILE}"))?;
-    let (mut name, mut sha256) = (None, None);
+    let (mut name, mut sha256, mut hang) = (None, None, false);
     for line in text.lines() {
         match line.split_once('=') {
             Some(("slot", v)) => name = Some(v.to_owned()),
             Some(("sha256", v)) => sha256 = Some(v.to_owned()),
+            Some(("test", "hang")) => hang = true,
             _ => {}
         }
     }
     match (name, sha256) {
-        (Some(name), Some(sha256)) => Ok(Slot { name, sha256 }),
+        (Some(name), Some(sha256)) => Ok(Slot { name, sha256, hang }),
         _ => bail!("{SLOT_FILE} needs both slot= and sha256="),
     }
 }
@@ -115,43 +129,19 @@ fn read_slot() -> Result<Slot> {
 fn wait_for_medium() -> Result<PathBuf> {
     let deadline = Instant::now() + MEDIUM_TIMEOUT;
     loop {
-        let found = find_partitions(MEDIUM_PARTNAME)?;
+        let found = medium::find(medium::PARTNAME).context("listing partitions")?;
         if let Some(first) = found.first() {
             if found.len() > 1 {
-                // Picking by firmware boot entry comes with the A/B work.
-                warn!("{} partitions named {MEDIUM_PARTNAME}, using {}", found.len(), first.display());
+                warn!("{} partitions named {}, using {}", found.len(), medium::PARTNAME, first.name);
             }
-            info!("boot medium is {}", first.display());
-            return Ok(first.clone());
+            info!("boot medium is {}", first.name);
+            return Ok(first.dev());
         }
         if Instant::now() >= deadline {
-            bail!("no partition named {MEDIUM_PARTNAME} after {}s", MEDIUM_TIMEOUT.as_secs());
+            bail!("no partition named {} after {}s", medium::PARTNAME, MEDIUM_TIMEOUT.as_secs());
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-}
-
-fn find_partitions(partname: &str) -> Result<Vec<PathBuf>> {
-    let mut found = Vec::new();
-    for entry in fs::read_dir("/sys/class/block").context("listing /sys/class/block")? {
-        let Ok(uevent) = fs::read_to_string(entry?.path().join("uevent")) else { continue };
-        let mut name = None;
-        let mut devname = None;
-        for line in uevent.lines() {
-            match line.split_once('=') {
-                Some(("PARTNAME", v)) => name = Some(v),
-                Some(("DEVNAME", v)) => devname = Some(v),
-                _ => {}
-            }
-        }
-        if let (Some(n), Some(d)) = (name, devname)
-            && n == partname
-        {
-            found.push(Path::new("/dev").join(d));
-        }
-    }
-    found.sort();
-    Ok(found)
 }
 
 fn copy_and_hash(from: &Path, to: &Path) -> Result<(u64, String)> {

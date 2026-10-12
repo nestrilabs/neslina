@@ -11,15 +11,16 @@
 
 mod mounts;
 mod services;
-mod watchdog;
 
 use std::time::{Duration, Instant};
 
 use neslina_common::{error, info};
 
+use neslina_common::watchdog::Watchdog;
 use services::{SERVICES, Supervisor};
-use watchdog::Watchdog;
 
+/// A hang this long resets the board.
+const WATCHDOG_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long services get to exit on SIGTERM before everything is killed.
 const STOP_GRACE: Duration = Duration::from_secs(10);
 
@@ -54,7 +55,7 @@ fn main() {
         }
     };
 
-    let mut watchdog = Watchdog::open();
+    let mut watchdog = Watchdog::open(WATCHDOG_TIMEOUT);
     let mut sup = Supervisor::new(SERVICES);
     sup.start_due(Instant::now());
     info!("up");

@@ -87,32 +87,53 @@ starts directly:
 
 **Stage 1** is our own small static binary. In order:
 
-1. Mounts the boot medium.
-2. Finds the slot's `.erofs` file.
-3. Checks its hash. This catches a corrupt USB stick, not an attacker.
-4. Copies the image into RAM if the slot is in USB mode.
-5. Mounts it. erofs mounts a plain file directly, so no loop device is needed.
+1. Arms the hardware watchdog with a long timeout, so a hang from here on
+   resets the board.
+2. Finds the boot medium by its GPT partition name, `NESLINA`.
+3. Copies the slot's `.erofs` file into RAM, hashing it on the way.
+4. Checks the hash against the one built into the kernel. This catches a
+   corrupt USB stick or a half-written update, not an attacker.
+5. Mounts the copy. erofs mounts a plain file directly, with no loop device,
+   but only from a filesystem that implements `read_folio`. ramfs does, and
+   tmpfs (the initramfs itself) does not, so the copy goes on its own ramfs.
 6. Switches root and executes init.
 
 The image stays compressed in RAM, because erofs decompresses on read.
+Internal mode will skip the copy and mount the image from the medium.
 
 ### Slots, updates and rollback
 
 Slots are UEFI boot entries (`Boot####` variables), which neslina writes itself
 through efivarfs. No `efibootmgr` is needed.
 
-- **Trying a new slot:** set `BootNext` to it and reboot. `BootNext` is used
-  once, and the next reboot goes back to `BootOrder`.
-- **Marking it good:** once init has reached its health point, it moves the
-  slot to the front of `BootOrder`. A slot that panics (`panic=10`) or trips the
-  watchdog reboots into the previous slot without anyone touching the machine.
+- **Entries:** a slot's entry is a short-form device path, the partition by
+  its GPT GUID followed by `\neslina\<slot>.efi`, the same shape `efibootmgr`
+  writes. Firmware expands it.
+- **Which slot is wanted:** `want=<slot>` in `neslina/boot.conf` on the boot
+  medium. Whatever installs or updates a slot writes its files and this line.
+- **Trying a slot:** the boot service registers its entry, records the trial
+  in neslina's own UEFI variable (`NeslinaTrial`), sets `BootNext` and
+  reboots. `BootNext` is used once, so any later reboot goes back to
+  `BootOrder`.
+- **Marking it good:** booted into the slot on trial, the boot service waits
+  until it counts as healthy, then moves its entry to the front of
+  `BootOrder`. For now, healthy means it has stayed up for 10 s. Later it will
+  be something above init reporting in.
+- **Failing:** a slot that panics (`panic=10`) or hangs until the watchdog
+  fires resets into the previous slot, with nobody touching the machine. That
+  slot sees the trial it is not running and records it as failed. That build
+  of the slot, identified by its EFI file's hash, is not tried again.
 - **Rescue:** the generic image from CI stays installed as the fallback
   `BOOTX64.EFI`. Some firmware loses NVRAM entries, especially for USB devices;
   the fallback path still boots something. Rescue is also the path for a
   hardware swap: boot rescue, rebuild.
-- **Watchdog:** a hardware watchdog driver is built in, and init arms it as
-  early as it can. A hang before init starts, with no watchdog armed by the
-  firmware, still needs a manual reset. That case is accepted.
+- **Watchdog:** a hardware watchdog driver is built in. Stage 1 arms it, and
+  init takes it over. A hang in the kernel before stage 1 runs, with no
+  watchdog armed by the firmware, still needs a manual reset. That case is
+  accepted.
+
+Tested in QEMU with OVMF: a slot tried and promoted, a slot that panics, and
+a slot that hangs (both roll back), all from a USB stick image.
 
 **To test:** how real firmware treats NVRAM entries pointing at USB devices.
 Booting without a bootloader is the plan, and our side carries whatever that

@@ -65,6 +65,11 @@ scripts/vm.sh stick-slot rescue
 scripts/vm.sh run
 ```
 
+To try a slot, build it under another name (`--slot a`), put it on the stick
+beside rescue (`scripts/vm.sh stick-slot rescue a`), and ask for it with
+`scripts/vm.sh want a`. `build-image.sh --broken panic|hang` makes a slot that
+fails, to watch rollback.
+
 In the VM, `Ctrl-a c` opens the QEMU monitor; `sendkey ctrl-alt-delete` there
 reboots the host cleanly, and `Ctrl-a x` quits.
 

@@ -4,10 +4,15 @@
 # A stand-in until `neslina build` and the recipes exist (docs/DESIGN.md §6).
 # It uses the build machine's own clang, lld, Rust and erofs-utils.
 #
-#   scripts/build-image.sh [--cpu generic|native] [--slot NAME]
+#   scripts/build-image.sh [--cpu generic|native] [--slot NAME] [--broken panic|hang]
 #
 # --cpu generic (the default) targets x86-64-v3, as CI and the rescue slot do.
 # --cpu native targets the machine running the build.
+# --broken builds a slot that cannot boot, to prove rollback:
+#          panic: its kernel expects the wrong root image hash, so stage 1
+#                 fails and the kernel panics
+#          hang:  stage 1 stops after arming the watchdog, which then resets
+#                 the board
 #
 # Output, in output/image/<slot>/:
 #   <slot>.efi     kernel with command line and stage 1 initramfs built in
@@ -23,6 +28,7 @@ kernel_repo=https://github.com/CachyOS/linux.git
 kernel_ref=cachyos-7.2.9-1
 cpu=generic
 slot=rescue
+broken=
 
 die() {
 	echo "build-image.sh: $*" >&2
@@ -33,6 +39,7 @@ while [[ $# -gt 0 ]]; do
 	case $1 in
 	--cpu) cpu=${2:?}; shift 2 ;;
 	--slot) slot=${2:?}; shift 2 ;;
+	--broken) broken=${2:?}; shift 2 ;;
 	*) die "unknown argument $1" ;;
 	esac
 done
@@ -41,6 +48,7 @@ generic) rust_cpu=x86-64-v3 ;;
 native) rust_cpu=native ;;
 *) die "--cpu is generic or native" ;;
 esac
+[[ -z $broken || $broken == panic || $broken == hang ]] || die "--broken is panic or hang"
 [[ $slot =~ ^[a-z0-9-]+$ ]] || die "slot names are lowercase letters, digits and dashes"
 
 out=$repo/output/image/$slot
@@ -66,7 +74,7 @@ build_rust() {
 		RUSTFLAGS="-C target-feature=+crt-static -C target-cpu=$rust_cpu" \
 		cargo build --manifest-path "$repo/Cargo.toml" --release --locked \
 		--target x86_64-unknown-linux-gnu \
-		-p neslina-stage1 -p neslina-init -p neslina-net
+		-p neslina-stage1 -p neslina-init -p neslina-net -p neslina-boot
 	bin=$repo/target/image-$cpu/x86_64-unknown-linux-gnu/release
 }
 
@@ -77,6 +85,7 @@ build_root() {
 	mkdir -p "$root"/{sbin,etc,dev,proc,sys,run,tmp,var,usr/bin,usr/lib/neslina}
 	install -m 0755 "$bin/neslina-init" "$root/sbin/init"
 	install -m 0755 "$bin/neslina-net" "$root/usr/lib/neslina/neslina-net"
+	install -m 0755 "$bin/neslina-boot" "$root/usr/lib/neslina/neslina-boot"
 	ln -s ../run/neslina/resolv.conf "$root/etc/resolv.conf"
 	cat >"$root/etc/os-release" <<-EOF
 		NAME=neslina
@@ -90,6 +99,16 @@ build_root() {
 	mkfs.erofs --quiet --all-root -T 0 -z lz4hc,12 "$out/$slot.erofs" "$root"
 	sha256=$(sha256sum "$out/$slot.erofs" | cut -d' ' -f1)
 	printf 'slot=%s\nsha256=%s\n' "$slot" "$sha256" >"$out/slot"
+	case $broken in
+	panic)
+		echo "building slot $slot broken on purpose: its kernel expects the wrong root image"
+		printf 'slot=%s\nsha256=%s\n' "$slot" "$(printf '0%.0s' {1..64})" >"$out/slot"
+		;;
+	hang)
+		echo "building slot $slot broken on purpose: stage 1 hangs until the watchdog resets"
+		echo "test=hang" >>"$out/slot"
+		;;
+	esac
 }
 
 write_initramfs_list() {

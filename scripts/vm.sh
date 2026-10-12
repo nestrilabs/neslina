@@ -5,7 +5,10 @@
 #   scripts/vm.sh stick <file.efi> [file...]
 #                                    write a GPT stick image with the EFI file as EFI/BOOT/BOOTX64.EFI
 #                                    and every file (the EFI file too) in neslina/
-#   scripts/vm.sh stick-slot <slot>  the same, for a slot made by scripts/build-image.sh
+#   scripts/vm.sh stick-slot <slot> [slot...]
+#                                    the same, for slots made by scripts/build-image.sh;
+#                                    the first is the firmware's fallback (the rescue slot)
+#   scripts/vm.sh want <slot>        ask the host to try a slot, through neslina/boot.conf
 #   scripts/vm.sh run                boot the VM (Ctrl-a x quits, Ctrl-a c opens the QEMU monitor)
 #   scripts/vm.sh reset-nvram        start again from empty UEFI variables
 #
@@ -116,9 +119,20 @@ stick)
 	make_stick "$@"
 	;;
 stick-slot)
-	[[ $# -eq 2 ]] || die "usage: scripts/vm.sh stick-slot <slot>"
-	slot_dir=$repo/output/image/$2
-	make_stick "$slot_dir/$2.efi" "$slot_dir/$2.erofs"
+	[[ $# -ge 2 ]] || die "usage: scripts/vm.sh stick-slot <slot> [slot...]"
+	shift
+	files=()
+	for s in "$@"; do
+		files+=("$repo/output/image/$s/$s.efi" "$repo/output/image/$s/$s.erofs")
+	done
+	make_stick "${files[@]}"
+	;;
+want)
+	[[ $# -eq 2 ]] || die "usage: scripts/vm.sh want <slot>"
+	[[ -f $stick ]] || die "no stick image; run: scripts/vm.sh stick-slot <slot...>"
+	printf 'want=%s\n' "$2" >"$dir/boot.conf"
+	mcopy -o -i "$stick@@1M" "$dir/boot.conf" ::/neslina/boot.conf
+	echo "wrote neslina/boot.conf: want=$2"
 	;;
 run) run ;;
 reset-nvram)
@@ -127,5 +141,5 @@ reset-nvram)
 	cp "$OVMF_VARS" "$vars"
 	echo "reset $vars"
 	;;
-*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot> | run | reset-nvram" ;;
+*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot...> | want <slot> | run | reset-nvram" ;;
 esac

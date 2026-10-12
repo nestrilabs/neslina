@@ -18,9 +18,21 @@ pub struct Service {
     pub name: &'static str,
     pub path: &'static str,
     pub args: &'static [&'static str],
+    pub restart: Restart,
 }
 
-pub const SERVICES: &[Service] = &[Service { name: "net", path: "/usr/lib/neslina/neslina-net", args: &[] }];
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Restart {
+    /// Long-running: restarted whenever it exits.
+    Always,
+    /// Runs once per boot: restarted only if it fails.
+    OnFailure,
+}
+
+pub const SERVICES: &[Service] = &[
+    Service { name: "net", path: "/usr/lib/neslina/neslina-net", args: &[], restart: Restart::Always },
+    Service { name: "boot", path: "/usr/lib/neslina/neslina-boot", args: &[], restart: Restart::OnFailure },
+];
 
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -35,7 +47,7 @@ enum State {
         pid: libc::pid_t,
         since: Instant,
     },
-    /// Shutting down; never restarted.
+    /// Finished, or shutting down; never restarted.
     Stopped,
 }
 
@@ -103,6 +115,11 @@ impl Supervisor {
                 continue;
             };
             let State::Running { since, .. } = e.state else { unreachable!() };
+            if e.service.restart == Restart::OnFailure && libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 {
+                info!("{} finished", e.service.name);
+                e.state = State::Stopped;
+                continue;
+            }
             if now.duration_since(since) >= HEALTHY_RUN {
                 e.backoff = BACKOFF_MIN;
             }

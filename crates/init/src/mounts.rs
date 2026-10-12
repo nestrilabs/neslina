@@ -1,6 +1,7 @@
 //! The filesystems a read-only root needs before anything runs.
 
 use std::fs;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use neslina_common::sys::{is_mountpoint, mount, umount};
@@ -28,6 +29,8 @@ const MOUNTS: &[(&str, &str, &str, libc::c_ulong, Option<&str>)] = &[
     ),
 ];
 
+const EFIVARS: &str = "/sys/firmware/efi/efivars";
+
 /// Owned by init; services get their own cgroup under it.
 pub const SYSTEM_CGROUP: &str = "/sys/fs/cgroup/system";
 
@@ -38,6 +41,10 @@ pub fn setup() -> Result<()> {
         }
         fs::create_dir_all(target).ok();
         mount(source, target, fstype, flags, data).with_context(|| format!("mounting {target}"))?;
+    }
+    // Slots are UEFI boot entries; the boot service reads and writes them here.
+    if Path::new(EFIVARS).parent().is_some_and(Path::exists) && !is_mountpoint(EFIVARS) {
+        mount("efivarfs", EFIVARS, "efivarfs", NOSUID_NODEV_NOEXEC, None).context("mounting efivarfs")?;
     }
     fs::create_dir_all("/run/neslina").context("creating /run/neslina")?;
     cgroups()

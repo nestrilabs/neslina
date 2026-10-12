@@ -1,0 +1,21 @@
+[package]
+name = "neslina-boot"
+description = "Slots as UEFI boot entries: try one with BootNext, promote it or record its failure"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "neslina_boot"
+path = "src/lib.rs"
+
+[[bin]]
+name = "neslina-boot"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+sha2.workspace = true
+neslina-common.workspace = true
