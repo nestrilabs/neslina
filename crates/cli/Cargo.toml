@@ -1,0 +1,16 @@
+[package]
+name = "neslina"
+description = "The neslina command: fetch sources and build slots"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "neslina"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { version = "4", features = ["derive"] }
+neslina-build = { path = "../build" }

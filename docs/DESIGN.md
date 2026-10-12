@@ -173,7 +173,8 @@ for Unraid or Cockpit.
 
 Building is split by what gains from native code:
 
-- **Prebuilt (by CI, shipped as one `sysroot.erofs`):**
+- **Prebuilt (by CI, shipped as one `sysroot.erofs`, made by
+  `scripts/build-sysroot.sh`):**
   - LLVM, clang and lld 23.1; mold 3.0;
   - rustc and cargo;
   - glibc;
@@ -204,20 +205,34 @@ build its own sysroot, it takes over.
 
 ### Recipes
 
-One TOML file per component in `recipes/`:
+One TOML file per component in `recipes/`, and `recipes/image.toml` naming
+the components of a slot and its kernel:
 
-- source URL and hash;
-- patches;
-- build system (meson, cmake, autotools, cargo, kbuild);
-- flags;
-- the files it installs into the image.
+- the source: a pinned download (URL and sha256), or a directory of this
+  repository for neslina's own code;
+- a build script, run with bash inside the sysroot. It gets the source, a
+  build directory kept between runs, and a destination for what it installs,
+  plus clang, mold and `-march` in the usual variables (`crates/build/src/pipeline.rs`).
 
 They are data, so adding a component does not mean rebuilding `neslina`.
-Patches worth taking from CachyOS and others are carried in the recipe,
-each with a note on why.
+Patches worth taking from CachyOS and others are carried in the repository and
+applied by the recipe, each with a note on why.
 
-Builds run without network access (sources are already on disk and hashed),
-as an unprivileged user in a namespace.
+`neslina fetch` downloads every pinned source into a store, keyed by hash, and
+vendors crates. It is the only step that needs network. `neslina build` runs
+each recipe in a sandbox:
+
+- new user, mount, PID, network, IPC and UTS namespaces;
+- the sysroot's directories read-only, the recipe's directories writable;
+- root inside, one unprivileged uid outside. That is the calling user on a dev
+  machine, and a dedicated build uid on a host, where neslina runs as root.
+
+It needs nothing but user namespaces, so the same command builds a slot on a
+developer's machine and on a host.
+
+The components' outputs are merged into the root image. The kernel builds
+last, with the root image's hash, the stage 1 initramfs and the slot's command
+line built in.
 
 CI uses the same builder and recipes, with x86-64-v3 as the target, to make the
 generic image and rescue slot. One tool, one recipe format, and only the target

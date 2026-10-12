@@ -6,7 +6,7 @@
 #                                    write a GPT stick image with the EFI file as EFI/BOOT/BOOTX64.EFI
 #                                    and every file (the EFI file too) in neslina/
 #   scripts/vm.sh stick-slot <slot> [slot...]
-#                                    the same, for slots made by scripts/build-image.sh;
+#                                    the same, for slots made by `neslina build`;
 #                                    the first is the firmware's fallback (the rescue slot)
 #   scripts/vm.sh want <slot>        ask the host to try a slot, through neslina/boot.conf
 #   scripts/vm.sh run                boot the VM (Ctrl-a x quits, Ctrl-a c opens the QEMU monitor)

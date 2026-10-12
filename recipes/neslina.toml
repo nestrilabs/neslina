@@ -1,0 +1,28 @@
+# neslina's own programs: stage 1 (the initramfs), init and the services.
+# Static, so stage 1 needs no libraries and neither does the root image yet.
+name = "neslina"
+version = "0.1.0"
+
+[source]
+path = "."
+
+[build]
+script = """
+export CARGO_HOME=/build/cargo-home
+export CARGO_TARGET_DIR=/build/target
+# --target keeps RUSTFLAGS off build scripts and proc macros.
+export RUSTFLAGS="-C target-feature=+crt-static -C target-cpu=$MARCH"
+cargo build --offline --locked --release --target x86_64-unknown-linux-gnu \
+    --manifest-path "$SRC/Cargo.toml" \
+    --config "source.crates-io.replace-with='vendored'" \
+    --config "source.vendored.directory='$VENDOR'" \
+    -p neslina-stage1 -p neslina-init -p neslina-net -p neslina-boot
+
+bin=$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release
+install -Dm0755 "$bin/neslina-stage1" "$DEST/boot/initramfs/init"
+install -Dm0755 "$bin/neslina-init" "$DEST/sbin/init"
+install -Dm0755 "$bin/neslina-net" "$DEST/usr/lib/neslina/neslina-net"
+install -Dm0755 "$bin/neslina-boot" "$DEST/usr/lib/neslina/neslina-boot"
+mkdir -p "$DEST/etc" "$DEST/usr/bin"
+ln -s ../run/neslina/resolv.conf "$DEST/etc/resolv.conf"
+"""

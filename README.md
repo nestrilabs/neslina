@@ -42,21 +42,27 @@ and DHCP on the network.
 
 ## Status
 
-Milestone 1: a generic build boots in QEMU from a USB stick image, with no
-bootloader. It runs from RAM and gets a DHCP address. Install, native builds and
-the GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
+A slot built natively by `neslina build` boots in QEMU from a USB stick image,
+with no bootloader. It runs from RAM, gets a DHCP address, and A/B slots try,
+promote and roll back. Disk setup, the setup UI and the GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Trying it
 
-`scripts/build-image.sh` builds a slot: the kernel as one EFI file and the root
-image it boots. `scripts/vm.sh` runs a QEMU VM with UEFI firmware, the slot on a
-USB stick image, an empty state disk and the serial console on your terminal.
-
-They need clang and lld, Rust, erofs-utils, QEMU, OVMF, mtools and util-linux.
-The first build clones and patches the kernel into `output/linux`.
+Builds run inside a prebuilt toolchain sysroot, in a sandbox with no network.
+Making the sysroot needs podman; building needs Rust; the VM needs QEMU, OVMF,
+mtools and util-linux.
 
 ```bash
-scripts/build-image.sh
+scripts/build-sysroot.sh
+```
+```bash
+cargo build --release -p neslina
+```
+```bash
+target/release/neslina fetch
+```
+```bash
+target/release/neslina build --slot rescue
 ```
 ```bash
 scripts/vm.sh stick-slot rescue
@@ -65,9 +71,12 @@ scripts/vm.sh stick-slot rescue
 scripts/vm.sh run
 ```
 
+`neslina build --cpu native` builds for the machine running it; the VM passes
+the host CPU through, so a native slot built on the same machine boots there.
+
 To try a slot, build it under another name (`--slot a`), put it on the stick
 beside rescue (`scripts/vm.sh stick-slot rescue a`), and ask for it with
-`scripts/vm.sh want a`. `build-image.sh --broken panic|hang` makes a slot that
+`scripts/vm.sh want a`. `neslina build --broken panic|hang` makes a slot that
 fails, to watch rollback.
 
 In the VM, `Ctrl-a c` opens the QEMU monitor; `sendkey ctrl-alt-delete` there

@@ -41,7 +41,7 @@ const WATCHDOG_TIMEOUT: Duration = Duration::from_secs(120);
 struct Slot {
     name: String,
     sha256: String,
-    /// Set only by `build-image.sh --broken hang`: stop here so the watchdog
+    /// Set only by `neslina build --broken hang`: stop here so the watchdog
     /// has to reset the board, which is how rollback from a hang is tested.
     hang: bool,
 }

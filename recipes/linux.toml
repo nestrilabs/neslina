@@ -1,0 +1,36 @@
+# The host kernel: CachyOS's tree, our patches (kernel/patches) and our
+# config (kernel/config), with the slot's command line and stage 1 initramfs
+# built in. See kernel/README.md.
+name = "linux"
+version = "cachyos-7.2.9-1"
+
+[source]
+url = "https://github.com/CachyOS/linux/archive/refs/tags/cachyos-7.2.9-1.tar.gz"
+sha256 = "dcbba68bf469e3dba9b5397f6ddd78ad98e9f9a181fe979c91e034ac79f58a99"
+strip = 1
+
+[build]
+script = """
+cd "$SRC"
+# Patches go on once per unpacked tree. A tree patched with a different set
+# has to be unpacked again.
+patches=$(cat "$REPO"/kernel/patches/*.patch | sha256sum | cut -d' ' -f1)
+if [ ! -e .neslina-patched ]; then
+    for p in "$REPO"/kernel/patches/*.patch; do
+        patch -p1 --forward --quiet <"$p"
+    done
+    echo "$patches" >.neslina-patched
+elif [ "$(cat .neslina-patched)" != "$patches" ]; then
+    echo "kernel/patches changed since this tree was patched; delete the linux work directory" >&2
+    exit 1
+fi
+
+frags=("$REPO/kernel/config/neslina.config" "$REPO/kernel/config/$NESLINA_CPU.config" /stage/slot.config)
+make -s O="$BUILD" LLVM=1 x86_64_defconfig
+scripts/kconfig/merge_config.sh -m -O "$BUILD" "$BUILD/.config" "${frags[@]}" >/dev/null
+make -s O="$BUILD" LLVM=1 olddefconfig
+"$REPO/kernel/verify-config.sh" "$BUILD/.config" "${frags[@]}"
+
+make -s O="$BUILD" LLVM=1 -j"$JOBS" bzImage
+install -Dm0644 "$BUILD/arch/x86/boot/bzImage" "$DEST/kernel.efi"
+"""

@@ -12,9 +12,9 @@ Base: CachyOS `cachyos-7.2.9-1` (<https://github.com/CachyOS/linux>).
 `config/neslina.config` is the curated config, applied on top of
 `x86_64_defconfig`. `config/generic.config` (x86-64-v3, for CI and the rescue
 slot) or `config/native.config` (`CONFIG_X86_NATIVE_CPU`) goes on top of that.
-`scripts/build-image.sh` merges them, runs `olddefconfig`, and fails if any line
-of a fragment did not survive, so a dropped dependency cannot change the
-kernel silently.
+The kernel recipe (`recipes/linux.toml`) merges them, runs `olddefconfig`, and
+`verify-config.sh` fails the build if any line of a fragment did not survive,
+so a dropped dependency cannot change the kernel silently.
 
 ## Working on the patches
 

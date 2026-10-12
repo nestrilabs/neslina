@@ -1,0 +1,28 @@
+# The build sysroot: the prebuilt toolchain and build tools every native
+# build runs in (docs/DESIGN.md §6). Only this image's contents are used, and
+# only at build time; nothing from it ships in a host's root image.
+#
+# Arch is just the vehicle. Packages are pinned to one day of the Arch Linux
+# Archive, so a given ARCHIVE_DATE always gives the same toolchain.
+FROM docker.io/archlinux/archlinux:base
+
+ARG ARCHIVE_DATE
+RUN test -n "$ARCHIVE_DATE" \
+ && echo "Server = https://archive.archlinux.org/repos/${ARCHIVE_DATE}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
+ && pacman -Syyuu --noconfirm \
+ && pacman -S --noconfirm --needed \
+      bash coreutils findutils grep sed gawk diffutils patch which file \
+      tar gzip xz zstd bzip2 cpio \
+      make bc flex bison perl python \
+      meson ninja cmake pkgconf \
+      clang lld llvm mold rust \
+      libelf openssl \
+      erofs-utils \
+ && pacman -Scc --noconfirm \
+ && rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/gtk-doc /var/lib/pacman/sync
+
+# The versions DESIGN.md pins. A different archive date that moves them
+# fails here instead of producing a different toolchain silently.
+RUN clang --version | grep -q 'clang version 23\.1\.' \
+ && ld.lld --version | grep -q '^LLD 23\.1\.' \
+ && mold --version | grep -q '^mold 3\.0\.'
