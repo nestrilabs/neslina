@@ -5,8 +5,7 @@ builds its own image these are applied by hand to a test host; once it does,
 they are part of its kernel build. Each one should also go upstream: carrying a
 patch here is a stopgap, not the goal.
 
-Base: CachyOS `cachyos-7.2.9-1` (<https://github.com/CachyOS/linux>), the kernel
-nestripc-1 runs.
+Base: CachyOS `cachyos-7.2.9-1` (<https://github.com/CachyOS/linux>).
 
 ## Working on them
 
@@ -38,8 +37,7 @@ When a protected allocation evicts, TTM measures protection from the closest
 cgroup the two share, and `dmem_cgroup_state_evict_valuable()` treats every
 buffer as evictable when that cgroup is the root. Box cgroups sit directly
 under the root, so one box could evict another box's protected VRAM while a
-third box sat gigabytes over its share. The measurements are in nescore's
-`docs/superpowers/specs/2026-10-07-gpu-sharing-and-vram-design.md`, finding 10.
+third box sat gigabytes over its share.
 
 neslet is not meant to depend on this patch: the plan is for it to put the box
 cgroups under a shared parent, which avoids the bug on any kernel (measured in

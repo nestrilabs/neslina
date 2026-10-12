@@ -1,52 +1,44 @@
 # neslina
 
-**The operating system a Nestri host runs. Nothing else.**
+**A small Linux host OS for running Nestri boxes, built on the machine it runs on.**
 
-Install it on a machine with a GPU and the machine becomes a Nestri host: it
-boots, registers itself, and is ready to run boxes. You do not log into it, you
-do not configure it, and you do not update it by hand.
+Write it to a USB stick and boot a machine with a GPU from it. The host shows up
+on your LAN with a setup page. There you pick its disks, and it builds itself
+for that exact CPU and GPU, then reboots as a Nestri host.
 
 ```
-install neslina  →  machine boots  →  host appears in your team  →  boxes run
+write USB  →  boot headless  →  setup page on LAN  →  native build  →  host ready
 ```
-
-Same idea as AWS's Bottlerocket or Talos Linux, built for one workload: GPU
-virtual machines streamed over the network.
 
 ## Why
 
-nesbox, vDRM and virtio-nvgpu all give a guest a path to the host's GPU driver.
-That path will never be provably safe; `nesbox/docs/SECURITY.md` says so plainly.
-Today those components run on whatever distro the host owner installed, with
-whatever else is on it. We cannot reason about the security of a machine we do
-not control.
-
-neslina moves the boundary one level down. If the guest escapes nesbox, it lands
-on a host that:
-
-- has no shell, no package manager, no compilers, no SSH daemon
-- mounts its root filesystem read-only and verifies it at boot
-- runs only the processes we ship
-- is reachable for debugging only through our own servers, on our terms
-
-And because we own the whole image, we can ship things we cannot ship today:
-kernel and driver updates on our schedule, a kernel tuned for this workload,
-and a GPU driver version we have actually tested.
+A cloud-gaming host should give the guests as much of the machine as it can.
+So neslina is compiled on the host, for the host: the kernel with
+`CONFIG_X86_NATIVE_CPU`, and Mesa, virglrenderer and the rest with
+`-march=native`. We ship pinned sources and recipes, not packages built for
+the lowest common CPU.
 
 ## What it is
 
-- An immutable, image-based Linux. One image, A/B partitions, atomic update,
-  automatic rollback on a failed boot.
-- `neslet` (the host agent), nesbox, and the GPU drivers. That is the userspace.
-- A data partition for everything that must survive an update: box disks,
-  caches, and the host's identity.
-- No GUI, no console login, no local admin.
+- Runs from RAM. It boots from the USB stick, or from a small partition on an
+  internal disk, and copies a compressed root image into memory.
+- Headless. No display, no keyboard, no shell. It is managed from another
+  device through a web UI.
+- Its own userspace: a Rust init, the `neslina` tool, and the few C components
+  the workload needs. No base distro and no systemd.
+- A/B slots with automatic rollback, plus a generic rescue slot. There is no
+  bootloader: the firmware starts each slot's kernel directly.
 
 ## What it is not
 
-- A general-purpose distro. If you want to run something else on the machine,
-  this is not for that machine.
+- A general-purpose distro. It is built for Nestri's own deployments; anyone who
+  wants a dedicated self-hosted Nestri box is welcome to use it.
 - A gaming OS. Gaming is one workload on it.
+
+## Requirements
+
+x86_64 with x86-64-v3 (AVX2), UEFI, a GPU from AMD or NVIDIA, one internal disk,
+and DHCP on the network.
 
 ## Status
 
