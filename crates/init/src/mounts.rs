@@ -63,13 +63,23 @@ fn cgroups() -> Result<()> {
     Ok(())
 }
 
-/// Nothing on the root is writable and persistent yet, so this only flushes
-/// and detaches what can be. Disks join when setup does.
+/// Unmounts every filesystem on a disk, last mounted first, so the state and
+/// games disks are clean on the next boot. Runs after every process is gone,
+/// so nothing holds them. Memory-backed mounts need nothing and stay.
 pub fn teardown() {
     // SAFETY: plain syscall.
     unsafe { libc::sync() };
-    for target in ["/tmp", "/dev/shm"] {
-        if let Err(e) = umount(target, libc::MNT_DETACH) {
+    let mounts = fs::read_to_string("/proc/self/mounts").unwrap_or_default();
+    let on_disks: Vec<&str> = mounts
+        .lines()
+        .filter_map(|l| {
+            let mut f = l.split_whitespace();
+            let (source, target) = (f.next()?, f.next()?);
+            (source.starts_with("/dev/") && target != "/").then_some(target)
+        })
+        .collect();
+    for target in on_disks.iter().rev() {
+        if let Err(e) = umount(target, 0) {
             warn!("unmounting {target}: {e}");
         }
     }

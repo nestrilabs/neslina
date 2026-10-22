@@ -78,3 +78,16 @@ pub fn current_slot() -> io::Result<String> {
         .map(str::to_owned)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no neslina.slot= on the command line"))
 }
+
+/// Mounts the medium read-only at `at` for the length of `f`, then unmounts
+/// it whatever `f` returned.
+pub fn with_mounted<T>(part: &Partition, at: &std::path::Path, f: impl FnOnce(&std::path::Path) -> T) -> io::Result<T> {
+    fs::create_dir_all(at)?;
+    let flags = libc::MS_RDONLY | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC;
+    crate::sys::mount(part.dev().to_str().unwrap_or_default(), at, "vfat", flags, None)?;
+    let out = f(at);
+    if let Err(e) = crate::sys::umount(at, 0) {
+        crate::warn!("unmounting {}: {e}", at.display());
+    }
+    Ok(out)
+}

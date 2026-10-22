@@ -47,6 +47,12 @@ The owner assigns disks in the setup UI:
 | State | yes | XFS | Config, logs, build sysroot, sources, build tree, Nestri data |
 | Games | no | XFS | Game images. Falls back to the state disk. |
 
+neslina finds its partitions by GPT name, as stage 1 finds the boot medium:
+`NESLINA-STATE` is mounted at `/var` and `NESLINA-GAMES` at
+`/var/neslina/games`. Kernel names can change between boots; partition names
+do not. Each disk gets a GPT with one partition, written by neslina itself
+(`crates/disks`). Shutdown unmounts both before rebooting.
+
 The boot role is either:
 
 - **USB mode:** the stick setup was booted from. The root image is copied into
@@ -156,6 +162,17 @@ on all older hardware.
    what it proposes. The owner assigns disk roles and confirms which disks it
    may wipe.
 6. **Partition and format.** Setup partitions and formats the assigned disks.
+   The same choice can be made before the first boot, in `neslina/setup.toml`
+   on the stick, which is how fleet hosts install unattended:
+
+   ```toml
+   [disks]
+   state = { serial = "S6B0NL0W123456" }
+   games = { name = "sdb", wipe = true }
+   ```
+
+   Naming a disk is consent to wipe it. A disk that already has partitions
+   also needs `wipe = true`, and the disk holding the boot medium is refused.
 7. **Unpack.** It copies the prebuilt sysroot and the pinned sources from the
    install medium onto the state disk. Install needs no network beyond DHCP.
 8. **Native build** (§6), with progress and logs in the setup UI.

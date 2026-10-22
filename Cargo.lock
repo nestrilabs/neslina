@@ -340,6 +340,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "neslina-disks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "neslina-common",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "neslina-init"
 version = "0.1.0"
 dependencies = [

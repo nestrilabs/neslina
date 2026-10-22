@@ -1,0 +1,22 @@
+[package]
+name = "neslina-disks"
+description = "Finding, partitioning, formatting and mounting the state and games disks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "neslina_disks"
+path = "src/lib.rs"
+
+[[bin]]
+name = "neslina-disks"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+neslina-common.workspace = true

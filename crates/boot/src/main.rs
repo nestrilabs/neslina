@@ -22,7 +22,6 @@ use neslina_boot::efivar::{self, GLOBAL, NESLINA};
 use neslina_boot::gpt::{self, GptPartition};
 use neslina_boot::loadopt::LoadOption;
 use neslina_common::medium::{self, Partition};
-use neslina_common::sys::{mount, umount};
 use neslina_common::{error, info, warn};
 use sha2::{Digest, Sha256};
 
@@ -147,13 +146,8 @@ fn run() -> Result<()> {
 /// Reads `want=` from the boot medium and hashes that slot's EFI file. The
 /// medium is mounted read-only only for as long as this takes.
 fn read_wanted(part: &Partition) -> Result<Option<Wanted>> {
-    std::fs::create_dir_all(MOUNT)?;
-    let dev = part.dev();
-    let flags = libc::MS_RDONLY | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC;
-    mount(dev.to_str().unwrap_or_default(), MOUNT, "vfat", flags, None)
-        .with_context(|| format!("mounting {} at {MOUNT}", dev.display()))?;
-    let result = (|| {
-        let conf = match std::fs::read_to_string(Path::new(MOUNT).join(CONF)) {
+    medium::with_mounted(part, Path::new(MOUNT), |dir| {
+        let conf = match std::fs::read_to_string(dir.join(CONF)) {
             Ok(c) => c,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e).context(format!("reading {CONF}")),
@@ -164,13 +158,10 @@ fn read_wanted(part: &Partition) -> Result<Option<Wanted>> {
         if !slot.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-') || slot.is_empty() {
             bail!("{CONF} names slot {slot:?}; slot names are lowercase letters, digits and dashes");
         }
-        let efi = sha256_file(&Path::new(MOUNT).join("neslina").join(format!("{slot}.efi")))?;
+        let efi = sha256_file(&dir.join("neslina").join(format!("{slot}.efi")))?;
         Ok(Some(Wanted { slot, efi }))
-    })();
-    if let Err(e) = umount(MOUNT, 0) {
-        warn!("unmounting {MOUNT}: {e}");
-    }
-    result
+    })
+    .with_context(|| format!("mounting {} at {MOUNT}", part.name))?
 }
 
 fn sha256_file(path: &Path) -> Result<String> {

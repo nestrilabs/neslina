@@ -9,6 +9,8 @@
 #                                    the same, for slots made by `neslina build`;
 #                                    the first is the firmware's fallback (the rescue slot)
 #   scripts/vm.sh want <slot>        ask the host to try a slot, through neslina/boot.conf
+#   scripts/vm.sh put <file>         copy a file (setup.toml, for one) into neslina/ on the stick
+#   scripts/vm.sh wipe-state         start again from an empty state disk
 #   scripts/vm.sh run                boot the VM (Ctrl-a x quits, Ctrl-a c opens the QEMU monitor)
 #   scripts/vm.sh reset-nvram        start again from empty UEFI variables
 #
@@ -103,7 +105,7 @@ run() {
 		-drive if=none,id=stick,format=raw,file="$stick" \
 		-device usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=0 \
 		-drive if=none,id=state,format=raw,file="$state",cache=none,aio=io_uring,discard=unmap \
-		-device virtio-blk-pci,drive=state \
+		-device virtio-blk-pci,drive=state,serial=neslina-state \
 		-netdev user,id=net0,hostname=neslina-test,hostfwd=tcp:127.0.0.1:"$https_port"-:443 \
 		-device virtio-net-pci,netdev=net0 \
 		-device i6300esb \
@@ -134,6 +136,16 @@ want)
 	mcopy -o -i "$stick@@1M" "$dir/boot.conf" ::/neslina/boot.conf
 	echo "wrote neslina/boot.conf: want=$2"
 	;;
+put)
+	[[ $# -eq 2 && -f $2 ]] || die "usage: scripts/vm.sh put <file>"
+	[[ -f $stick ]] || die "no stick image; run: scripts/vm.sh stick-slot <slot...>"
+	mcopy -o -i "$stick@@1M" "$2" "::/neslina/$(basename "$2")"
+	echo "copied $2 to neslina/$(basename "$2")"
+	;;
+wipe-state)
+	rm -f "$state"
+	echo "removed $state; the next run starts with an empty state disk"
+	;;
 run) run ;;
 reset-nvram)
 	find_ovmf
@@ -141,5 +153,5 @@ reset-nvram)
 	cp "$OVMF_VARS" "$vars"
 	echo "reset $vars"
 	;;
-*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot...> | want <slot> | run | reset-nvram" ;;
+*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot...> | want <slot> | put <file> | wipe-state | run | reset-nvram" ;;
 esac

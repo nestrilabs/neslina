@@ -32,6 +32,7 @@ pub enum Restart {
 pub const SERVICES: &[Service] = &[
     Service { name: "net", path: "/usr/lib/neslina/neslina-net", args: &[], restart: Restart::Always },
     Service { name: "boot", path: "/usr/lib/neslina/neslina-boot", args: &[], restart: Restart::OnFailure },
+    Service { name: "disks", path: "/usr/lib/neslina/neslina-disks", args: &[], restart: Restart::OnFailure },
 ];
 
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
