@@ -22,6 +22,9 @@
 #   VM_MEM           memory (default: 16G)
 #   VM_STATE_SIZE    size of the state disk when it is first created (default: 64G)
 #   VM_HTTPS_PORT    host port forwarded to the guest's 443 (default: 8443)
+#   VM_TAP           a tap device on your LAN bridge, owned by you: the VM then gets its
+#                    address from your DHCP server and answers mDNS there. Without it,
+#                    QEMU's user networking (DHCP from QEMU, no multicast, port forward only)
 #   OVMF_CODE        firmware code image (default: searched for)
 #   OVMF_VARS        firmware variables template (default: searched for)
 set -euo pipefail
@@ -93,6 +96,11 @@ run() {
 	[[ -f $state ]] || truncate -s "$state_size" "$state"
 	[[ -r /dev/kvm ]] || die "/dev/kvm is not accessible"
 
+	local netdev=(-netdev "user,id=net0,hostname=neslina-test,hostfwd=tcp:127.0.0.1:$https_port-:443")
+	if [[ -n ${VM_TAP:-} ]]; then
+		netdev=(-netdev "tap,id=net0,ifname=$VM_TAP,script=no,downscript=no")
+	fi
+
 	# -cpu host: native builds inside the VM see the real CPU, and nesbox gets VMX/SVM (nested KVM).
 	# The stick goes on xHCI so firmware and kernel see a USB device, as on real hardware.
 	# i6300esb with watchdog=reset is what makes a hung trial slot fall back.
@@ -109,7 +117,7 @@ run() {
 		-device usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=0 \
 		-drive if=none,id=state,format=raw,file="$state",cache=none,aio=io_uring,discard=unmap \
 		-device virtio-blk-pci,drive=state,serial=neslina-state \
-		-netdev user,id=net0,hostname=neslina-test,hostfwd=tcp:127.0.0.1:"$https_port"-:443 \
+		"${netdev[@]}" \
 		-device virtio-net-pci,netdev=net0 \
 		-device i6300esb \
 		-action watchdog=reset \
