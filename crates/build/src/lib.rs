@@ -2,6 +2,7 @@
 //! slot inside the prebuilt sysroot (docs/DESIGN.md §6).
 
 pub mod bundle;
+pub mod hwconfig;
 pub mod pipeline;
 pub mod recipe;
 pub mod sandbox;

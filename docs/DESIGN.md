@@ -299,9 +299,15 @@ flags differ.
 ## 7. Kernel
 
 - **Base:** CachyOS `linux`. The current pin is `cachyos-7.3.0-2`.
-- **Config:** one curated headless config plus `CONFIG_X86_NATIVE_CPU`.
-  Everything the host needs is built in, so there is no module loading except
-  NVIDIA's. Patches live in `kernel/patches/` (see `kernel/README.md`).
+- **Config:** `allnoconfig` plus a whitelist (`kernel/config/neslina.config`),
+  a hardware fragment, and `CONFIG_X86_NATIVE_CPU` for native builds.
+  Nothing is built unless a fragment names it. The generic build carries
+  common server and desktop hardware (`hw-generic.config`). A native build
+  carries only what the machine's devices use, worked out from the drivers
+  that bound under the rescue slot, so it is always a subset of what rescue
+  could drive. A hardware swap means a rebuild. Everything is built in, so
+  there is no module loading except NVIDIA's. Patches live in
+  `kernel/patches/` (see `kernel/README.md`).
 - **`CONFIG_RUST` off.** `X86_NATIVE_CPU` depends on `!RUST || RUSTC_HAS_APXF`,
   and the host needs none of the Rust drivers. The config sets it explicitly
   rather than inheriting CachyOS's choice.

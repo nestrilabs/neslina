@@ -32,6 +32,12 @@ enum Command {
     },
     /// Build one slot: its root image and the kernel that boots it.
     Build(BuildArgs),
+    /// Print the native hardware fragment this machine would get, and why.
+    HwFragment {
+        /// An unpacked kernel tree of the version the recipe pins.
+        #[arg(long)]
+        kernel_src: PathBuf,
+    },
     /// Make the install bundle a host builds its own slots from.
     Bundle {
         /// The toolchain image (scripts/build-sysroot.sh).
@@ -92,6 +98,17 @@ fn main() -> Result<()> {
                 store.fetch(&Recipe::load(&recipes, name)?, &Recipe::path(&recipes, name), &repo, pin)?;
             }
             println!("store is complete: {}", store.dir.display());
+            Ok(())
+        }
+        Command::HwFragment { kernel_src } => {
+            let generic = std::fs::read_to_string(repo.join("kernel/config/hw-generic.config"))?;
+            let bound = neslina_build::hwconfig::bound_modules(std::path::Path::new("/sys"));
+            let (fragment, report) = neslina_build::hwconfig::native_fragment(&kernel_src, &generic, &bound)?;
+            eprintln!("bound modules: {}", bound.iter().cloned().collect::<Vec<_>>().join(" "));
+            for line in report {
+                eprintln!("{line}");
+            }
+            print!("{fragment}");
             Ok(())
         }
         Command::Bundle { sysroot_image, sysroot, out } => bundle::make(&bundle::Options {

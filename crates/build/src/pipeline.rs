@@ -21,8 +21,12 @@
 //! include path and the library path all look there first. The root image
 //! gets the runtime files only: headers, static libraries and pkg-config
 //! files are dropped, and binaries are stripped. The kernel recipe also
-//! gets `/stage` (the initramfs list and `slot.config`) and `SLOT`, and
-//! installs `$DEST/kernel.efi`.
+//! gets `/stage` (the initramfs list, `slot.config` and `hw.config`) and
+//! `SLOT`, and installs `$DEST/kernel.efi`.
+//!
+//! `hw.config` is the kernel's hardware: `kernel/config/hw-generic.config`
+//! for a generic build, and for a native build the part of it this machine's
+//! devices use (`hwconfig`).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -110,6 +114,12 @@ pub fn build(o: &Options) -> Result<()> {
     write_stage(o, &stage, &root_sha)?;
 
     let kernel = Recipe::load(&recipes_dir, &image.kernel)?;
+    // A native build reads the kernel's Makefiles and Kconfig to choose its
+    // hardware, so the source is unpacked first.
+    if let Some(Source::Url { sha256, strip, .. }) = &kernel.source {
+        unpack(o, &work, &store, &kernel, sha256, *strip, &work.join(&kernel.name))?;
+    }
+    write_hw_fragment(o, &stage, &work.join(&kernel.name).join("src"))?;
     build_component(
         o,
         &store,
@@ -342,6 +352,26 @@ mkfs.erofs --quiet --all-root -T 0 -z lz4hc,12 /stage/root.erofs /stage/root
     println!("assembling the root image");
     sandbox(o, work, binds, Vec::new()).run(&script).context("assembling the root image")?;
     Ok(sha256_file(&stage.join("root.erofs"))?)
+}
+
+/// The kernel's hardware fragment, `hw.config` in the stage.
+fn write_hw_fragment(o: &Options, stage: &Path, kernel_src: &Path) -> Result<()> {
+    let generic = fs::read_to_string(o.repo.join("kernel/config/hw-generic.config"))
+        .context("reading kernel/config/hw-generic.config")?;
+    let fragment = match o.cpu {
+        Cpu::Generic => generic,
+        Cpu::Native => {
+            let bound = crate::hwconfig::bound_modules(Path::new("/sys"));
+            let (fragment, report) = crate::hwconfig::native_fragment(kernel_src, &generic, &bound)?;
+            println!("hardware: drivers in use here: {}", bound.iter().cloned().collect::<Vec<_>>().join(" "));
+            for line in report {
+                println!("hardware: {line}");
+            }
+            fragment
+        }
+    };
+    fs::write(stage.join("hw.config"), fragment)?;
+    Ok(())
 }
 
 /// What the kernel build embeds: the slot file stage 1 reads, the initramfs

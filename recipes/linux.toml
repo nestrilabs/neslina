@@ -25,10 +25,11 @@ elif [ "$(cat .neslina-patched)" != "$patches" ]; then
     exit 1
 fi
 
-frags=("$REPO/kernel/config/neslina.config" "$REPO/kernel/config/$NESLINA_CPU.config" /stage/slot.config)
-make -s O="$BUILD" LLVM=1 x86_64_defconfig
-scripts/kconfig/merge_config.sh -m -O "$BUILD" "$BUILD/.config" "${frags[@]}" >/dev/null
-make -s O="$BUILD" LLVM=1 olddefconfig
+# allnoconfig plus the fragments: nothing is built that a fragment does not
+# name. hw.config is the hardware, generic or this machine's (see
+# crates/build/src/hwconfig.rs).
+frags=("$REPO/kernel/config/neslina.config" /stage/hw.config "$REPO/kernel/config/$NESLINA_CPU.config" /stage/slot.config)
+LLVM=1 scripts/kconfig/merge_config.sh -n -O "$BUILD" "${frags[@]}" >/dev/null
 "$REPO/kernel/verify-config.sh" "$BUILD/.config" "${frags[@]}"
 
 make -s O="$BUILD" LLVM=1 -j"$JOBS" bzImage
