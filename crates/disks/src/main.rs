@@ -22,7 +22,8 @@ use neslina_disks::{GAMES, STATE};
 
 const STATE_MOUNT: &str = "/var";
 const GAMES_MOUNT: &str = "/var/neslina/games";
-const MEDIUM_MOUNT: &str = "/run/neslina/medium";
+/// Each service mounts the medium at its own path; they run at the same time.
+const MEDIUM_MOUNT: &str = "/run/neslina/medium-disks";
 const SETUP: &str = "neslina/setup.toml";
 
 fn main() {
@@ -48,7 +49,8 @@ fn run() -> Result<()> {
         Ok(t) => match toml::from_str(&t) {
             Ok(s) => s,
             Err(e) => {
-                error!("{SETUP}: {e}");
+                // The full error spans several lines; the log takes one.
+                error!("{SETUP}: {}", e.message());
                 return Ok(());
             }
         },

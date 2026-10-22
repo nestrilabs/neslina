@@ -167,12 +167,15 @@ on all older hardware.
 
    ```toml
    [disks]
-   state = { serial = "S6B0NL0W123456" }
+   state = { serial = "S6B0NL0W123456", wipe = true }
    games = { name = "sdb", wipe = true }
    ```
 
-   Naming a disk is consent to wipe it. A disk that already has partitions
-   also needs `wipe = true`, and the disk holding the boot medium is refused.
+   Nothing is chosen or wiped by default. Each entry names exactly one disk
+   and states `wipe` outright; leaving it out is an error. A disk is erased
+   only with `wipe = true`, even an empty one, and the disk holding the boot
+   medium is always refused. Otherwise the host keeps running from the stick
+   and touches no internal disk.
 7. **Unpack.** It copies the prebuilt sysroot and the pinned sources from the
    install medium onto the state disk. Install needs no network beyond DHCP.
 8. **Native build** (§6), with progress and logs in the setup UI.

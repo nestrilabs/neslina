@@ -3,12 +3,15 @@
 //!
 //! ```toml
 //! [disks]
-//! state = { serial = "S6B0NL0W123456" }
+//! state = { serial = "S6B0NL0W123456", wipe = true }
 //! games = { name = "sdb", wipe = true }
 //! ```
 //!
-//! Naming a disk here is consent to wipe it, unless it already has
-//! partitions; then `wipe = true` has to say so too.
+//! Nothing is chosen or wiped by default. Each entry names exactly one disk,
+//! by serial or kernel name, and says `wipe` outright: a missing `wipe` is an
+//! error, not `false`. A disk is erased only with `wipe = true`, empty or
+//! not. Without that, the host keeps running from the stick and leaves every
+//! internal disk alone.
 
 use serde::Deserialize;
 
@@ -32,7 +35,7 @@ pub struct Disks {
 pub struct Select {
     pub serial: Option<String>,
     pub name: Option<String>,
-    #[serde(default)]
+    /// Required: an entry must say whether its disk may be erased.
     pub wipe: bool,
 }
 
@@ -52,12 +55,13 @@ impl Select {
         if disk.holds_medium {
             return Err(format!("{role}: {} holds the boot medium", disk.name));
         }
-        if !disk.partitions.is_empty() && !self.wipe {
-            return Err(format!(
-                "{role}: {} has partitions ({}); add wipe = true to erase it",
-                disk.name,
-                disk.partitions.join(", ")
-            ));
+        if !self.wipe {
+            let contents = if disk.partitions.is_empty() {
+                "no partitions".to_owned()
+            } else {
+                format!("partitions {}", disk.partitions.join(", "))
+            };
+            return Err(format!("{role}: {} ({contents}) is not erased without wipe = true", disk.name));
         }
         Ok(disk)
     }
@@ -97,21 +101,36 @@ mod tests {
     #[test]
     fn resolves_by_serial_or_name() {
         let disks = [disk("sda", "STICK", &["sda1"], true), disk("vda", "neslina-state", &[], false)];
-        assert_eq!(
-            select("[disks]\nstate = { serial = \"neslina-state\" }").resolve("state", &disks).unwrap().name,
-            "vda"
-        );
-        assert_eq!(select("[disks]\nstate = { name = \"vda\" }").resolve("state", &disks).unwrap().name, "vda");
+        let by_serial = "[disks]\nstate = { serial = \"neslina-state\", wipe = true }";
+        assert_eq!(select(by_serial).resolve("state", &disks).unwrap().name, "vda");
+        let by_name = "[disks]\nstate = { name = \"vda\", wipe = true }";
+        assert_eq!(select(by_name).resolve("state", &disks).unwrap().name, "vda");
+    }
+
+    #[test]
+    fn never_wipes_without_saying_so_even_an_empty_disk() {
+        let disks = [disk("vda", "EMPTY", &[], false)];
+        assert!(select("[disks]\nstate = { name = \"vda\", wipe = false }").resolve("state", &disks).is_err());
+    }
+
+    #[test]
+    fn nothing_is_left_to_a_default() {
+        // No disk named at all, and no wipe stated: both are errors.
+        let disks = [disk("vda", "EMPTY", &[], false)];
+        assert!(select("[disks]\nstate = { wipe = true }").resolve("state", &disks).is_err());
+        assert!(toml::from_str::<Setup>("[disks]\nstate = { name = \"vda\" }").is_err());
+        assert!(toml::from_str::<Setup>("[disks]\nstate = {}").is_err());
     }
 
     #[test]
     fn refuses_the_medium_unknown_disks_and_unconfirmed_wipes() {
         let disks = [disk("sda", "STICK", &["sda1"], true), disk("vda", "OLD", &["vda1"], false)];
         assert!(select("[disks]\nstate = { name = \"sda\", wipe = true }").resolve("state", &disks).is_err());
-        assert!(select("[disks]\nstate = { serial = \"missing\" }").resolve("state", &disks).is_err());
-        assert!(select("[disks]\nstate = { name = \"vda\" }").resolve("state", &disks).is_err());
+        assert!(select("[disks]\nstate = { serial = \"missing\", wipe = true }").resolve("state", &disks).is_err());
+        assert!(select("[disks]\nstate = { name = \"vda\", wipe = false }").resolve("state", &disks).is_err());
         assert!(select("[disks]\nstate = { name = \"vda\", wipe = true }").resolve("state", &disks).is_ok());
-        assert!(select("[disks]\nstate = { name = \"vda\", serial = \"OLD\" }").resolve("state", &disks).is_err());
+        let both = "[disks]\nstate = { name = \"vda\", serial = \"OLD\", wipe = true }";
+        assert!(select(both).resolve("state", &disks).is_err());
     }
 
     #[test]

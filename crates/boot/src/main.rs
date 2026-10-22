@@ -25,7 +25,8 @@ use neslina_common::medium::{self, Partition};
 use neslina_common::{error, info, warn};
 use sha2::{Digest, Sha256};
 
-const MOUNT: &str = "/run/neslina/medium";
+/// Each service mounts the medium at its own path; they run at the same time.
+const MOUNT: &str = "/run/neslina/medium-boot";
 const CONF: &str = "neslina/boot.conf";
 const TRIAL_VAR: &str = "NeslinaTrial";
 /// How long a slot on trial must run before it becomes the default. A
