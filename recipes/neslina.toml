@@ -16,7 +16,8 @@ cargo build --offline --locked --release --target x86_64-unknown-linux-gnu \
     --manifest-path "$SRC/Cargo.toml" \
     --config "source.crates-io.replace-with='vendored'" \
     --config "source.vendored.directory='$VENDOR'" \
-    -p neslina-stage1 -p neslina-init -p neslina-net -p neslina-boot -p neslina-disks
+    -p neslina-stage1 -p neslina-init -p neslina-net -p neslina-boot -p neslina-disks \\
+    -p neslina-install -p neslina
 
 bin=$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release
 install -Dm0755 "$bin/neslina-stage1" "$DEST/boot/initramfs/init"
@@ -24,6 +25,8 @@ install -Dm0755 "$bin/neslina-init" "$DEST/sbin/init"
 install -Dm0755 "$bin/neslina-net" "$DEST/usr/lib/neslina/neslina-net"
 install -Dm0755 "$bin/neslina-boot" "$DEST/usr/lib/neslina/neslina-boot"
 install -Dm0755 "$bin/neslina-disks" "$DEST/usr/lib/neslina/neslina-disks"
+install -Dm0755 "$bin/neslina-install" "$DEST/usr/lib/neslina/neslina-install"
+install -Dm0755 "$bin/neslina" "$DEST/usr/bin/neslina"
 mkdir -p "$DEST/etc" "$DEST/usr/bin"
 ln -s ../run/neslina/resolv.conf "$DEST/etc/resolv.conf"
 """

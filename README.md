@@ -42,9 +42,11 @@ and DHCP on the network.
 
 ## Status
 
-A slot built natively by `neslina build` boots in QEMU from a USB stick image,
-with no bootloader. It runs from RAM, gets a DHCP address, and A/B slots try,
-promote and roll back. Disk setup, the setup UI and the GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
+In QEMU, a stick holding the rescue slot, an install bundle and a `setup.toml`
+installs a host with nobody touching it. Rescue formats the state disk it was
+told to, builds the host's own native slot from the bundle, and boots into it
+with no bootloader; A/B slots try, promote and roll back. The setup UI and the
+GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Trying it
 
@@ -78,6 +80,22 @@ To try a slot, build it under another name (`--slot a`), put it on the stick
 beside rescue (`scripts/vm.sh stick-slot rescue a`), and ask for it with
 `scripts/vm.sh want a`. `neslina build --broken panic|hang` makes a slot that
 fails, to watch rollback.
+
+To watch a full install, give the stick an install bundle and disk
+assignment, and start from an empty state disk:
+
+```bash
+target/release/neslina bundle
+```
+```bash
+scripts/vm.sh bundle
+```
+```bash
+printf '[disks]\nstate = { serial = "neslina-state", wipe = true }\n' > output/setup.toml
+```
+```bash
+scripts/vm.sh put output/setup.toml
+```
 
 In the VM, `Ctrl-a c` opens the QEMU monitor; `sendkey ctrl-alt-delete` there
 reboots the host cleanly, and `Ctrl-a x` quits.

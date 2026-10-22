@@ -82,8 +82,27 @@ pub fn current_slot() -> io::Result<String> {
 /// Mounts the medium read-only at `at` for the length of `f`, then unmounts
 /// it whatever `f` returned.
 pub fn with_mounted<T>(part: &Partition, at: &std::path::Path, f: impl FnOnce(&std::path::Path) -> T) -> io::Result<T> {
+    with_mount(part, at, libc::MS_RDONLY, f)
+}
+
+/// The same, writable, for putting slot files and `boot.conf` on it.
+/// Everything is flushed before it is unmounted.
+pub fn with_mounted_rw<T>(
+    part: &Partition,
+    at: &std::path::Path,
+    f: impl FnOnce(&std::path::Path) -> T,
+) -> io::Result<T> {
+    with_mount(part, at, 0, f)
+}
+
+fn with_mount<T>(
+    part: &Partition,
+    at: &std::path::Path,
+    extra: libc::c_ulong,
+    f: impl FnOnce(&std::path::Path) -> T,
+) -> io::Result<T> {
     fs::create_dir_all(at)?;
-    let flags = libc::MS_RDONLY | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC;
+    let flags = extra | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC;
     crate::sys::mount(part.dev().to_str().unwrap_or_default(), at, "vfat", flags, None)?;
     let out = f(at);
     if let Err(e) = crate::sys::umount(at, 0) {

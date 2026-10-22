@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use neslina_build::bundle;
 use neslina_build::pipeline::{self, Broken, Cpu, Options};
 use neslina_build::recipe::{Image, Recipe};
 use neslina_build::store::Store;
@@ -31,6 +32,17 @@ enum Command {
     },
     /// Build one slot: its root image and the kernel that boots it.
     Build(BuildArgs),
+    /// Make the install bundle a host builds its own slots from.
+    Bundle {
+        /// The toolchain image (scripts/build-sysroot.sh).
+        #[arg(long)]
+        sysroot_image: Option<PathBuf>,
+        /// The unpacked sysroot, to run mkfs.erofs from.
+        #[arg(long)]
+        sysroot: Option<PathBuf>,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(clap::Args)]
@@ -82,6 +94,15 @@ fn main() -> Result<()> {
             println!("store is complete: {}", store.dir.display());
             Ok(())
         }
+        Command::Bundle { sysroot_image, sysroot, out } => bundle::make(&bundle::Options {
+            sysroot_image: sysroot_image.unwrap_or_else(|| output.join("sysroot/sysroot.erofs")),
+            sysroot: sysroot.unwrap_or_else(|| output.join("sysroot/root")),
+            work: output.join("work"),
+            out: out.unwrap_or_else(|| output.join("bundle")),
+            version: version(&repo),
+            store: store.dir,
+            repo,
+        }),
         Command::Build(b) => {
             let opts = Options {
                 sysroot: b.sysroot.unwrap_or_else(|| output.join("sysroot/root")),
@@ -106,8 +127,12 @@ fn main() -> Result<()> {
     }
 }
 
-/// `git describe` of the repository when there is one, otherwise the crate version.
+/// The repository's `VERSION` file (a bundle carries one), otherwise
+/// `git describe`, otherwise the crate version.
 fn version(repo: &std::path::Path) -> String {
+    if let Ok(v) = std::fs::read_to_string(repo.join("VERSION")) {
+        return v.trim().to_owned();
+    }
     std::process::Command::new("git")
         .args(["describe", "--always", "--dirty"])
         .current_dir(repo)

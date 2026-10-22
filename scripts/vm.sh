@@ -8,6 +8,8 @@
 #   scripts/vm.sh stick-slot <slot> [slot...]
 #                                    the same, for slots made by `neslina build`;
 #                                    the first is the firmware's fallback (the rescue slot)
+#   scripts/vm.sh bundle [dir]       copy an install bundle (`neslina bundle`; default output/bundle)
+#                                    into neslina/install/ on the stick
 #   scripts/vm.sh want <slot>        ask the host to try a slot, through neslina/boot.conf
 #   scripts/vm.sh put <file>         copy a file (setup.toml, for one) into neslina/ on the stick
 #   scripts/vm.sh wipe-state         start again from an empty state disk
@@ -70,13 +72,14 @@ make_stick() {
 	done
 	mkdir -p "$dir"
 	rm -f "$stick"
-	truncate -s 1G "$stick"
+	# Big enough for an install bundle; the image is sparse.
+	truncate -s 4G "$stick"
 	sfdisk --quiet "$stick" <<-EOF
 		label: gpt
-		start=2048, size=1000MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=NESLINA
+		start=2048, size=4000MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=NESLINA
 	EOF
 	local img="$stick@@1M"
-	mformat -i "$img" -F -v NESLINA -T $((1000 * 2048)) ::
+	mformat -i "$img" -F -v NESLINA -T $((4000 * 2048)) ::
 	mmd -i "$img" ::/EFI ::/EFI/BOOT ::/neslina
 	mcopy -i "$img" "$efi" ::/EFI/BOOT/BOOTX64.EFI
 	mcopy -i "$img" "$@" ::/neslina/
@@ -136,6 +139,14 @@ want)
 	mcopy -o -i "$stick@@1M" "$dir/boot.conf" ::/neslina/boot.conf
 	echo "wrote neslina/boot.conf: want=$2"
 	;;
+bundle)
+	[[ -f $stick ]] || die "no stick image; run: scripts/vm.sh stick-slot <slot...>"
+	from=${2:-$repo/output/bundle}
+	[[ -f $from/sysroot.erofs && -f $from/source.erofs ]] || die "no bundle in $from; run: neslina bundle"
+	mmd -i "$stick@@1M" ::/neslina/install 2>/dev/null || true
+	mcopy -o -i "$stick@@1M" "$from/sysroot.erofs" "$from/source.erofs" ::/neslina/install/
+	echo "copied the bundle from $from to neslina/install/"
+	;;
 put)
 	[[ $# -eq 2 && -f $2 ]] || die "usage: scripts/vm.sh put <file>"
 	[[ -f $stick ]] || die "no stick image; run: scripts/vm.sh stick-slot <slot...>"
@@ -153,5 +164,5 @@ reset-nvram)
 	cp "$OVMF_VARS" "$vars"
 	echo "reset $vars"
 	;;
-*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot...> | want <slot> | put <file> | wipe-state | run | reset-nvram" ;;
+*) die "usage: scripts/vm.sh stick <file.efi> [file...] | stick-slot <slot...> | want <slot> | bundle [dir] | put <file> | wipe-state | run | reset-nvram" ;;
 esac

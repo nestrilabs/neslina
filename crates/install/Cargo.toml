@@ -1,0 +1,12 @@
+[package]
+name = "neslina-install"
+description = "The installer: builds the host's native slot from the bundle and hands it to the boot service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+neslina-common.workspace = true

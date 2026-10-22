@@ -176,12 +176,22 @@ on all older hardware.
    only with `wipe = true`, even an empty one, and the disk holding the boot
    medium is always refused. Otherwise the host keeps running from the stick
    and touches no internal disk.
-7. **Unpack.** It copies the prebuilt sysroot and the pinned sources from the
-   install medium onto the state disk. Install needs no network beyond DHCP.
-8. **Native build** (§6), with progress and logs in the setup UI.
-9. **Install and reboot.** The native image is written as slot A and tried
-   with `BootNext`. Setup is finished when slot A marks itself good. If it
-   fails, the host comes back on rescue and the setup UI shows why.
+7. **Copy the bundle.** The install bundle on the stick is copied to the
+   state disk and mounted read-only. It is two images: `sysroot.erofs` (the
+   toolchain) and `source.erofs` (this repository and every source its
+   recipes pin), made by `neslina bundle`. Install needs no network beyond
+   DHCP.
+8. **Native build** (§6): `neslina build --cpu native --slot a`. The log goes
+   to `/var/neslina/log/` on the state disk; the setup UI will show it.
+9. **Install and reboot.** `a.efi` and `a.erofs` go onto the boot medium with
+   `want=a`, and the boot service tries the slot with `BootNext`. Setup is
+   finished when slot A marks itself good. If it fails, the host comes back
+   on rescue, which records why.
+
+Steps 6 to 9 are the `neslina-install` service, run on the rescue slot once
+the disks service has mounted the state disk. In QEMU, a fresh VM with a stick
+holding rescue, the bundle and a `setup.toml` goes through all of it and ends
+on its own native slot A, with nobody touching it.
 
 There is no static IP and no local network config. DHCP only.
 
@@ -308,7 +318,9 @@ image.
 | Setup and later management | The `neslina` web UI |
 
 `init` takes its supervision model from `nesinit`: it starts services and
-keeps them alive. It is its own binary, with as few dependencies as possible.
+keeps them alive. Long-running services are restarted whenever they exit;
+run-once services only when they fail. A service can wait for run-once
+services to finish first, as the installer waits for the disks service. It is its own binary, with as few dependencies as possible.
 A panic in PID 1 is a kernel panic, so the web server, the builder, and HTTP and
 TLS stay out of it.
 

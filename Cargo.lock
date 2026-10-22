@@ -360,6 +360,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neslina-install"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "neslina-common",
+]
+
+[[package]]
 name = "neslina-net"
 version = "0.1.0"
 dependencies = [

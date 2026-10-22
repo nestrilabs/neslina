@@ -3,6 +3,9 @@
 //! The service list is compiled in: the image ships exactly these, and nothing
 //! adds to it at run time. Each service runs in its own session and its own
 //! cgroup under `system/`, with stdout and stderr on the kernel log.
+//!
+//! A service can wait for run-once services to finish first (`after`): the
+//! installer needs the disks service to have mounted the state disk.
 
 use std::fs::{self, File, OpenOptions};
 use std::os::fd::AsRawFd;
@@ -19,6 +22,8 @@ pub struct Service {
     pub path: &'static str,
     pub args: &'static [&'static str],
     pub restart: Restart,
+    /// Run-once services that must have finished successfully first.
+    pub after: &'static [&'static str],
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -30,9 +35,22 @@ pub enum Restart {
 }
 
 pub const SERVICES: &[Service] = &[
-    Service { name: "net", path: "/usr/lib/neslina/neslina-net", args: &[], restart: Restart::Always },
-    Service { name: "boot", path: "/usr/lib/neslina/neslina-boot", args: &[], restart: Restart::OnFailure },
-    Service { name: "disks", path: "/usr/lib/neslina/neslina-disks", args: &[], restart: Restart::OnFailure },
+    Service { name: "net", path: "/usr/lib/neslina/neslina-net", args: &[], restart: Restart::Always, after: &[] },
+    Service { name: "boot", path: "/usr/lib/neslina/neslina-boot", args: &[], restart: Restart::OnFailure, after: &[] },
+    Service {
+        name: "disks",
+        path: "/usr/lib/neslina/neslina-disks",
+        args: &[],
+        restart: Restart::OnFailure,
+        after: &[],
+    },
+    Service {
+        name: "install",
+        path: "/usr/lib/neslina/neslina-install",
+        args: &[],
+        restart: Restart::OnFailure,
+        after: &["disks"],
+    },
 ];
 
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
@@ -48,7 +66,9 @@ enum State {
         pid: libc::pid_t,
         since: Instant,
     },
-    /// Finished, or shutting down; never restarted.
+    /// A run-once service that exited successfully.
+    Finished,
+    /// Shutting down; never restarted.
     Stopped,
 }
 
@@ -70,9 +90,20 @@ impl Supervisor {
         Self { entries }
     }
 
+    /// Whether everything this service waits for has finished.
+    fn ready(&self, service: &Service) -> bool {
+        service
+            .after
+            .iter()
+            .all(|dep| self.entries.iter().any(|e| e.service.name == *dep && matches!(e.state, State::Finished)))
+    }
+
+    /// The earliest time a service can start. One still waiting for another
+    /// to finish has none; that finishing wakes the main loop anyway.
     pub fn next_due(&self) -> Option<Instant> {
         self.entries
             .iter()
+            .filter(|e| self.ready(e.service))
             .filter_map(|e| match e.state {
                 State::Due(t) => Some(t),
                 _ => None,
@@ -81,9 +112,10 @@ impl Supervisor {
     }
 
     pub fn start_due(&mut self, now: Instant) {
-        for e in &mut self.entries {
+        let ready: Vec<bool> = self.entries.iter().map(|e| self.ready(e.service)).collect();
+        for (e, ready) in self.entries.iter_mut().zip(ready) {
             let State::Due(at) = e.state else { continue };
-            if at > now {
+            if at > now || !ready {
                 continue;
             }
             match spawn(e.service) {
@@ -118,7 +150,7 @@ impl Supervisor {
             let State::Running { since, .. } = e.state else { unreachable!() };
             if e.service.restart == Restart::OnFailure && libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 {
                 info!("{} finished", e.service.name);
-                e.state = State::Stopped;
+                e.state = State::Finished;
                 continue;
             }
             if now.duration_since(since) >= HEALTHY_RUN {
