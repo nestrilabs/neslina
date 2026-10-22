@@ -1,0 +1,21 @@
+# mkfs.xfs and friends, for the state and games disks.
+name = "xfsprogs"
+version = "7.2.1"
+
+[source]
+url = "https://www.kernel.org/pub/linux/utils/fs/xfs/xfsprogs/xfsprogs-7.2.1.tar.xz"
+sha256 = "c45f5fd81fdebcdae61938fcfdff86c9960b39fc89a06df633730d93876cd27d"
+strip = 1
+
+[build]
+script = """
+# xfsprogs builds in its source tree.
+cd "$SRC"
+# It has no switch for libdevmapper and would find the sysroot's; xfs_io only
+# uses it for device-mapper targets, which a host does not have.
+export ac_cv_search_dm_task_create=no
+[ -f include/builddefs ] || ./configure --prefix=/usr --sbindir=/usr/bin --libdir=/usr/lib --libexecdir=/usr/lib \\
+    --enable-lib64=no --disable-gettext --disable-editline --disable-libicu --enable-scrub=no --enable-healer=no
+make -j"$JOBS"
+make install DIST_ROOT="$DEST"
+"""

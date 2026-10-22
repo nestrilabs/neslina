@@ -24,7 +24,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Download every pinned source and vendor crates. Needs network.
-    Fetch,
+    Fetch {
+        /// Download sources pinned to zeros and write their hash into the recipe.
+        #[arg(long)]
+        pin: bool,
+    },
     /// Build one slot: its root image and the kernel that boots it.
     Build(BuildArgs),
 }
@@ -70,10 +74,10 @@ fn main() -> Result<()> {
     let store = Store { dir: cli.store.unwrap_or_else(|| output.join("store")) };
 
     match cli.command {
-        Command::Fetch => {
+        Command::Fetch { pin } => {
             let recipes = repo.join("recipes");
             for name in Image::load(&recipes)?.all() {
-                store.fetch(&Recipe::load(&recipes, name)?, &repo)?;
+                store.fetch(&Recipe::load(&recipes, name)?, &Recipe::path(&recipes, name), &repo, pin)?;
             }
             println!("store is complete: {}", store.dir.display());
             Ok(())

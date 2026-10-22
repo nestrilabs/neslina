@@ -54,6 +54,9 @@ pub struct Sandbox<'a> {
     /// sandbox's own mount namespace sees anything there.
     pub scratch: PathBuf,
     pub binds: Vec<Bind>,
+    /// Read-only merged views: the host directories, lowest first, shown as
+    /// one at the inside path.
+    pub overlays: Vec<(Vec<PathBuf>, PathBuf)>,
     pub env: Vec<(String, String)>,
     pub workdir: PathBuf,
 }
@@ -253,6 +256,20 @@ impl Sandbox<'_> {
                 fs::File::create(&dst)?;
             }
             bind(&b.host, &dst, b.writable).with_context(|| format!("binding {}", b.host.display()))?;
+        }
+
+        for (layers, inside) in &self.overlays {
+            let dst = root.join(inside.strip_prefix("/").unwrap_or(inside));
+            fs::create_dir_all(&dst)?;
+            match layers.as_slice() {
+                [] => {}
+                [one] => bind(one, &dst, false)?,
+                many => {
+                    // overlayfs lists the top layer first.
+                    let lower: Vec<&str> = many.iter().rev().map(|p| p.to_str().unwrap_or_default()).collect();
+                    mount("overlay", &dst, "overlay", libc::MS_RDONLY, Some(&format!("lowerdir={}", lower.join(":"))))?;
+                }
+            }
         }
 
         // Pivot onto the new root and drop the old one entirely.

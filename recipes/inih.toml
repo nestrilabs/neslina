@@ -1,0 +1,16 @@
+# Config file parser; xfsprogs reads mkfs.xfs config files with it.
+name = "inih"
+version = "r62"
+
+[source]
+url = "https://github.com/benhoyt/inih/archive/refs/tags/r62.tar.gz"
+sha256 = "9c15fa751bb8093d042dae1b9f125eb45198c32c6704cd5481ccde460d4f8151"
+strip = 1
+
+[build]
+script = """
+[ -f "$BUILD/build.ninja" ] || meson setup "$BUILD" "$SRC" --prefix=/usr --libdir=lib --buildtype=release \\
+    -Ddefault_library=shared -Ddistro_install=true -Dwith_INIReader=false
+meson compile -C "$BUILD"
+DESTDIR="$DEST" meson install -C "$BUILD" --no-rebuild
+"""

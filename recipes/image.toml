@@ -1,5 +1,5 @@
-# What a slot is made of. Components build in this order, and their outputs
-# together are the root image; the kernel builds last, with the root image's
-# hash and the initramfs built into it.
-components = ["neslina"]
+# What a slot is made of. Components build in this order, each against those
+# before it; their outputs together are the root image. The kernel builds
+# last, with the root image's hash and the initramfs built into it.
+components = ["glibc", "neslina", "util-linux", "inih", "userspace-rcu", "xfsprogs", "dosfstools"]
 kernel = "linux"

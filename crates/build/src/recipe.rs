@@ -19,7 +19,11 @@
 //! A source is either a pinned download (`url` and `sha256`) or a directory
 //! in the repository (`path`, relative to the repository root), used for
 //! neslina's own code. A `path` source with a `Cargo.lock` gets its crates
-//! vendored by `neslina fetch`, so the build itself needs no network.
+//! vendored by `neslina fetch`, so the build itself needs no network. A recipe
+//! with no source takes what it installs from the sysroot (glibc).
+//!
+//! A download pinned to 64 zeros is not pinned yet: `neslina fetch --pin`
+//! downloads it and writes the real hash into the recipe.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -32,7 +36,8 @@ use serde::Deserialize;
 pub struct Recipe {
     pub name: String,
     pub version: String,
-    pub source: Source,
+    #[serde(default)]
+    pub source: Option<Source>,
     pub build: Build,
 }
 
@@ -67,15 +72,22 @@ pub struct Image {
     pub kernel: String,
 }
 
+/// The placeholder for a download not pinned yet.
+pub const UNPINNED: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
 impl Recipe {
+    pub fn path(recipes: &Path, name: &str) -> PathBuf {
+        recipes.join(format!("{name}.toml"))
+    }
+
     pub fn load(recipes: &Path, name: &str) -> Result<Self> {
-        let path = recipes.join(format!("{name}.toml"));
+        let path = Self::path(recipes, name);
         let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
         let recipe: Recipe = toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
         if recipe.name != name {
             bail!("{} is named {:?}, expected {name:?}", path.display(), recipe.name);
         }
-        if let Source::Url { sha256, .. } = &recipe.source
+        if let Some(Source::Url { sha256, .. }) = &recipe.source
             && (sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()))
         {
             bail!("{}: sha256 must be 64 hex digits", path.display());
@@ -115,7 +127,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(url.source, Source::Url { strip: 1, .. }));
+        assert!(matches!(url.source, Some(Source::Url { strip: 1, .. })));
 
         let path: Recipe = toml::from_str(
             r#"
@@ -128,7 +140,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(path.source, Source::Path { .. }));
+        assert!(matches!(path.source, Some(Source::Path { .. })));
     }
 
     #[test]

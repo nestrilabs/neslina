@@ -1,0 +1,16 @@
+# RCU for userspace; xfsprogs needs it.
+name = "userspace-rcu"
+version = "0.15.7"
+
+[source]
+url = "https://lttng.org/files/urcu/userspace-rcu-0.15.7.tar.bz2"
+sha256 = "2556b83adc0f9b3ac8024e613e17d014d04c4c49110604ce55fcb14eae32edd3"
+strip = 1
+
+[build]
+script = """
+cd "$BUILD"
+[ -f Makefile ] || "$SRC/configure" --prefix=/usr --libdir=/usr/lib --disable-static
+make -j"$JOBS"
+make install DESTDIR="$DEST"
+"""

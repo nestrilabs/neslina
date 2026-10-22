@@ -9,13 +9,18 @@
 //! | `DEST` | `/dest`, emptied before each run; what the component installs |
 //! | `REPO` | the neslina repository, read-only, at `/repo` |
 //! | `VENDOR` | vendored crates, for a `path` source with a `Cargo.lock` |
+//! | `DEPS` | `/deps`: what every earlier component installed, merged, read-only |
 //! | `JOBS` | parallel jobs |
 //! | `NESLINA_CPU` | `generic` or `native` |
 //! | `MARCH` | `x86-64-v3` or `native` |
 //! | `CC`, `CXX`, `AR`, `NM`, `RANLIB`, `CFLAGS`, `CXXFLAGS`, `LDFLAGS` | clang, mold, `-march=$MARCH` |
 //!
-//! Components put everything for the root image under `$DEST`, and anything
-//! for the initramfs under `$DEST/boot/initramfs`. The kernel recipe also
+//! Components put everything for the root image under `$DEST`, with `/usr`
+//! as the prefix, and anything for the initramfs under `$DEST/boot/initramfs`.
+//! A component builds against earlier ones through `/deps`: pkg-config, the
+//! include path and the library path all look there first. The root image
+//! gets the runtime files only: headers, static libraries and pkg-config
+//! files are dropped, and binaries are stripped. The kernel recipe also
 //! gets `/stage` (the initramfs list and `slot.config`) and `SLOT`, and
 //! installs `$DEST/kernel.efi`.
 
@@ -93,9 +98,11 @@ pub fn build(o: &Options) -> Result<()> {
     let work = o.work.join(o.cpu.name());
     fs::create_dir_all(&work)?;
 
+    let mut built: Vec<PathBuf> = Vec::new();
     for name in &image.components {
         let recipe = Recipe::load(&recipes_dir, name)?;
-        build_component(o, &store, &work, &recipe, Vec::new(), Vec::new())?;
+        build_component(o, &store, &work, &recipe, &built, Vec::new(), Vec::new())?;
+        built.push(work.join(name).join("dest"));
     }
 
     let stage = work.join("stage").join(&o.slot);
@@ -108,6 +115,7 @@ pub fn build(o: &Options) -> Result<()> {
         &store,
         &work,
         &kernel,
+        &[],
         vec![Bind::ro(&stage, "/stage")],
         vec![("SLOT".into(), o.slot.clone())],
     )?;
@@ -164,7 +172,14 @@ fn sandbox<'a>(o: &'a Options, work: &Path, binds: Vec<Bind>, env: Vec<(String, 
     all.extend(binds);
     let mut full_env = base_env(o);
     full_env.extend(env);
-    Sandbox { sysroot: &o.sysroot, scratch: work.join(".root"), binds: all, env: full_env, workdir: PathBuf::from("/") }
+    Sandbox {
+        sysroot: &o.sysroot,
+        scratch: work.join(".root"),
+        binds: all,
+        overlays: Vec::new(),
+        env: full_env,
+        workdir: PathBuf::from("/"),
+    }
 }
 
 fn build_component(
@@ -172,6 +187,7 @@ fn build_component(
     store: &Store,
     work: &Path,
     recipe: &Recipe,
+    deps: &[PathBuf],
     extra_binds: Vec<Bind>,
     extra_env: Vec<(String, String)>,
 ) -> Result<()> {
@@ -187,11 +203,12 @@ fn build_component(
     let mut binds = vec![Bind::rw(&build, "/build"), Bind::rw(&dest, "/dest")];
     let mut env = extra_env;
     match &recipe.source {
-        Source::Url { sha256, strip, .. } => {
+        None => {}
+        Some(Source::Url { sha256, strip, .. }) => {
             unpack(o, work, store, recipe, sha256, *strip, &dir)?;
             binds.push(Bind::rw(&src, "/src"));
         }
-        Source::Path { path } => {
+        Some(Source::Path { path }) => {
             binds.push(Bind::ro(o.repo.join(path), "/src"));
             let vendor = store.vendor(&recipe.name);
             if vendor.exists() {
@@ -202,8 +219,36 @@ fn build_component(
     }
     binds.extend(extra_binds);
 
+    let mut sb = sandbox(o, work, binds, env);
+    if !deps.is_empty() {
+        sb.overlays.push((deps.to_vec(), PathBuf::from("/deps")));
+        sb.env.extend(deps_env(o));
+    }
     println!("building {} {}", recipe.name, recipe.version);
-    sandbox(o, work, binds, env).run(&recipe.build.script).with_context(|| format!("building {}", recipe.name))
+    // libtool archives hard-code /usr paths, which breaks every later
+    // component that links against this one through /deps.
+    let script = format!("{}\nfind \"$DEST\" -name '*.la' -delete\n", recipe.build.script);
+    sb.run(&script).with_context(|| format!("building {}", recipe.name))
+}
+
+/// Points pkg-config, the compiler and the linker at `/deps` first. pkg-config
+/// only sees `/deps`: a library a component needs comes from a recipe, not
+/// from the sysroot. The include path goes in `CFLAGS` as well as `CPPFLAGS`,
+/// because some build systems (xfsprogs) never pass `CPPFLAGS` to the compiler.
+fn deps_env(o: &Options) -> Vec<(String, String)> {
+    let cflags = format!("-O2 -pipe -march={} -I/deps/usr/include", o.cpu.march());
+    [
+        ("CFLAGS", cflags.clone()),
+        ("CXXFLAGS", cflags),
+        ("DEPS", "/deps".to_owned()),
+        ("PKG_CONFIG_LIBDIR", "/deps/usr/lib/pkgconfig:/deps/usr/share/pkgconfig".to_owned()),
+        ("PKG_CONFIG_SYSROOT_DIR", "/deps".to_owned()),
+        ("CPPFLAGS", "-I/deps/usr/include".to_owned()),
+        ("LDFLAGS", "-fuse-ld=mold -L/deps/usr/lib -Wl,-rpath-link,/deps/usr/lib".to_owned()),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_owned(), v))
+    .collect()
 }
 
 /// Unpacks a downloaded source unless the same one is already unpacked. The
@@ -239,7 +284,8 @@ fn unpack(
     build_dir(&dir.join("build"))?;
     let binds = vec![Bind::ro(archive, "/archive"), Bind::rw(&src, "/src")];
     sandbox(o, work, binds, Vec::new())
-        .run(&format!("tar -xf /archive --strip-components={strip} -C /src"))
+        // Only root is mapped inside, so the archive's owners cannot be kept.
+        .run(&format!("tar -xf /archive --no-same-owner --strip-components={strip} -C /src"))
         .with_context(|| format!("unpacking {}", recipe.name))?;
     fs::write(&stamp, want)?;
     Ok(())
@@ -263,7 +309,24 @@ if [ -d /stage/root/boot/initramfs ]; then
     cp -a /stage/root/boot/initramfs/. /stage/initramfs/
 fi
 rm -rf /stage/root/boot
+# Runtime files only.
+rm -rf /stage/root/usr/include /stage/root/usr/lib/pkgconfig /stage/root/usr/share/{{man,doc,info,pkgconfig,aclocal,locale,bash-completion}}
+find /stage/root \( -name '*.a' -o -name '*.la' \) -delete
+find /stage/root -type f \( -perm -u+x -o -name '*.so*' \) -exec sh -c 'for f; do llvm-strip --strip-unneeded "$f" 2>/dev/null || true; done' sh {{}} +
 mkdir -p /stage/root/{{dev,proc,sys,run,tmp,var,etc}}
+# Every library a binary needs must be in the image. A configure script can
+# find a library in the sysroot that no recipe built; that fails here rather
+# than on the host.
+missing=0
+while IFS= read -r f; do
+    for lib in $(llvm-readelf -d "$f" 2>/dev/null | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p'); do
+        if [ ! -e "/stage/root/usr/lib/$lib" ]; then
+            echo "${{f#/stage/root}} needs $lib, which no component installs" >&2
+            missing=1
+        fi
+    done
+done < <(find /stage/root -type f \( -perm -u+x -o -name '*.so*' \))
+[ "$missing" -eq 0 ]
 cat >/stage/root/etc/os-release <<EOF
 NAME=neslina
 ID=neslina

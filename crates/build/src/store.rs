@@ -13,7 +13,7 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 
-use crate::recipe::{Recipe, Source};
+use crate::recipe::{Recipe, Source, UNPINNED};
 
 pub struct Store {
     pub dir: PathBuf,
@@ -28,11 +28,24 @@ impl Store {
         self.dir.join("vendor").join(recipe)
     }
 
-    /// Makes sure everything this recipe needs is in the store.
-    pub fn fetch(&self, recipe: &Recipe, repo: &Path) -> Result<()> {
+    /// Makes sure everything this recipe needs is in the store. With `pin`,
+    /// a download still pinned to zeros is fetched and its hash written into
+    /// the recipe file at `recipe_path`.
+    pub fn fetch(&self, recipe: &Recipe, recipe_path: &Path, repo: &Path, pin: bool) -> Result<()> {
         match &recipe.source {
-            Source::Url { url, sha256, .. } => self.download(&recipe.name, url, sha256),
-            Source::Path { path } => {
+            None => Ok(()),
+            Some(Source::Url { url, sha256, .. }) if sha256 == UNPINNED => {
+                if !pin {
+                    bail!("{} is not pinned yet; run `neslina fetch --pin`", recipe.name);
+                }
+                let got = self.download(&recipe.name, url, None)?;
+                let text = fs::read_to_string(recipe_path)?;
+                fs::write(recipe_path, text.replacen(UNPINNED, &got, 1))?;
+                println!("pinned {} to sha256 {got}", recipe.name);
+                Ok(())
+            }
+            Some(Source::Url { url, sha256, .. }) => self.download(&recipe.name, url, Some(sha256)).map(drop),
+            Some(Source::Path { path }) => {
                 let dir = repo.join(path);
                 if dir.join("Cargo.lock").exists() {
                     self.vendor_crates(&recipe.name, &dir)?;
@@ -42,14 +55,19 @@ impl Store {
         }
     }
 
-    fn download(&self, name: &str, url: &str, sha256: &str) -> Result<()> {
-        let dest = self.archive(sha256);
-        if dest.exists() {
-            return Ok(());
+    /// Downloads into the store, checking the hash when one is pinned, and
+    /// returns the hash.
+    fn download(&self, name: &str, url: &str, sha256: Option<&str>) -> Result<String> {
+        if let Some(sha) = sha256
+            && self.archive(sha).exists()
+        {
+            return Ok(sha.to_owned());
         }
-        fs::create_dir_all(dest.parent().unwrap())?;
+        let incoming = self.dir.join("incoming");
+        fs::create_dir_all(&incoming)?;
+        fs::create_dir_all(self.dir.join("sha256"))?;
         println!("fetching {name}: {url}");
-        let partial = dest.with_extension("partial");
+        let partial = incoming.join(name);
         let mut reader = ureq::get(url).call().with_context(|| format!("requesting {url}"))?.into_body().into_reader();
         let mut out = File::create(&partial)?;
         let mut hasher = Sha256::new();
@@ -64,12 +82,14 @@ impl Store {
         }
         out.sync_all()?;
         let got = hex(&hasher.finalize());
-        if got != sha256 {
+        if let Some(sha) = sha256
+            && got != sha
+        {
             fs::remove_file(&partial).ok();
-            bail!("{name}: {url} has sha256 {got}, the recipe pins {sha256}");
+            bail!("{name}: {url} has sha256 {got}, the recipe pins {sha}");
         }
-        fs::rename(&partial, &dest)?;
-        Ok(())
+        fs::rename(&partial, self.archive(&got))?;
+        Ok(got)
     }
 
     /// `cargo vendor` into the store. Re-run on every fetch: it is cheap

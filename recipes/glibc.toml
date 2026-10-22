@@ -1,0 +1,17 @@
+# glibc comes prebuilt with the sysroot (docs/DESIGN.md §6); a native build
+# of it gains nothing, since it picks CPU-specific code at run time. The root
+# image gets the sysroot's runtime libraries, so everything built against the
+# sysroot runs on the host.
+name = "glibc"
+version = "sysroot"
+
+[build]
+script = """
+mkdir -p "$DEST/usr/lib"
+for lib in ld-linux-x86-64.so.2 libc.so.6 libm.so.6 libresolv.so.2 libdl.so.2 libpthread.so.0 librt.so.1 libutil.so.1; do
+    cp -L "/usr/lib/$lib" "$DEST/usr/lib/"
+done
+# The dynamic linker's path in every binary is /lib64/ld-linux-x86-64.so.2.
+ln -s usr/lib "$DEST/lib"
+ln -s usr/lib "$DEST/lib64"
+"""
