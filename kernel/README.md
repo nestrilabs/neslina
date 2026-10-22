@@ -5,7 +5,7 @@ of neslina's kernel build, and are also applied by hand to test hosts that
 don't run neslina yet. Each one should also go upstream: carrying a
 patch here is a stopgap, not the goal.
 
-Base: CachyOS `cachyos-7.2.9-1` (<https://github.com/CachyOS/linux>).
+Base: CachyOS `cachyos-7.3.0-2` (<https://github.com/CachyOS/linux>).
 
 ## Config
 
@@ -23,7 +23,7 @@ lives under `output/`, which git ignores:
 
 ```bash
 git clone https://github.com/CachyOS/linux.git output/linux
-git -C output/linux switch -c neslina-7.2.9 cachyos-7.2.9-1
+git -C output/linux switch -c neslina-7.3.0 cachyos-7.3.0-2
 git -C output/linux am ../../kernel/patches/*.patch
 ```
 
@@ -31,14 +31,14 @@ Change the branch, then regenerate:
 
 ```bash
 rm kernel/patches/*.patch
-git -C output/linux format-patch -o ../../kernel/patches cachyos-7.2.9-1..HEAD
+git -C output/linux format-patch -o ../../kernel/patches cachyos-7.3.0-2..HEAD
 ```
 
 ## The patches
 
 | Patch | Why | Status |
 |---|---|---|
-| `0001-cgroup-dmem-respect-protection-when-the-common-ances` | `dmem.min` protects nothing between cgroups that are both children of the root | Compiles. Not yet booted. Not sent upstream. |
+| `0001-cgroup-dmem-respect-protection-when-the-common-ances` | `dmem.min` protects nothing between cgroups that are both children of the root | Boots (in every neslina slot since milestone 1). Protection itself not yet measured on a neslina host. Not sent upstream. |
 
 ### 0001: dmem protection between children of the root
 

@@ -2,11 +2,11 @@
 # config (kernel/config), with the slot's command line and stage 1 initramfs
 # built in. See kernel/README.md.
 name = "linux"
-version = "cachyos-7.2.9-1"
+version = "cachyos-7.3.0-2"
 
 [source]
-url = "https://github.com/CachyOS/linux/archive/refs/tags/cachyos-7.2.9-1.tar.gz"
-sha256 = "dcbba68bf469e3dba9b5397f6ddd78ad98e9f9a181fe979c91e034ac79f58a99"
+url = "https://github.com/CachyOS/linux/archive/refs/tags/cachyos-7.3.0-2.tar.gz"
+sha256 = "65da8a9e4bbf9f98bcc19aaa55eca9be1a6bbd37bfbb07313145d48432f882c6"
 strip = 1
 
 [build]

@@ -240,7 +240,7 @@ flags differ.
 
 ## 7. Kernel
 
-- **Base:** CachyOS `linux`. The current pin is `cachyos-7.2.9-1`.
+- **Base:** CachyOS `linux`. The current pin is `cachyos-7.3.0-2`.
 - **Config:** one curated headless config plus `CONFIG_X86_NATIVE_CPU`.
   Everything the host needs is built in, so there is no module loading except
   NVIDIA's. Patches live in `kernel/patches/` (see `kernel/README.md`).

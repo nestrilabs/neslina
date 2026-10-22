@@ -3,10 +3,10 @@
 //!
 //! ```toml
 //! name = "linux"
-//! version = "cachyos-7.2.9-1"
+//! version = "cachyos-7.3.0-2"
 //!
 //! [source]
-//! url = "https://…/linux-cachyos-7.2.9-1.tar.gz"
+//! url = "https://…/linux-cachyos-7.3.0-2.tar.gz"
 //! sha256 = "…"
 //! strip = 1            # leading path components to drop when unpacking
 //!

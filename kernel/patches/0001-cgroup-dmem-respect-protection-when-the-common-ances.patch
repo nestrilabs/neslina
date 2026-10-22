@@ -1,4 +1,4 @@
-From f2d47e47a9bd869b2886faa74d91012a8e7a0502 Mon Sep 17 00:00:00 2001
+From 628ae7dba5f3215174f71979c29e3228f8630bf9 Mon Sep 17 00:00:00 2001
 From: DatCaptainHorse <kristian@nestri.io>
 Date: Wed, 7 Oct 2026 19:04:50 +0300
 Subject: [PATCH] cgroup/dmem: respect protection when the common ancestor is
@@ -30,10 +30,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 3 deletions(-)
 
 diff --git a/kernel/cgroup/dmem.c b/kernel/cgroup/dmem.c
-index 1ab60f524213..db0de1df5a34 100644
+index 4683f3d68..0d38261a2 100644
 --- a/kernel/cgroup/dmem.c
 +++ b/kernel/cgroup/dmem.c
-@@ -312,9 +312,6 @@ bool dmem_cgroup_state_evict_valuable(struct dmem_cgroup_pool_state *limit_pool,
+@@ -365,9 +365,6 @@ bool dmem_cgroup_state_evict_valuable(struct dmem_cgroup_pool_state *limit_pool,
  		return true;
  
  	if (limit_pool) {

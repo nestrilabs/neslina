@@ -228,10 +228,15 @@ fn unpack(
         bail!("{}: source not in the store; run `neslina fetch`", recipe.name);
     }
     println!("unpacking {} {}", recipe.name, recipe.version);
-    if src.exists() {
-        fs::remove_dir_all(&src)?;
+    // A build directory made from other sources would be reused against
+    // these; start both over.
+    for stale in [&src, &dir.join("build")] {
+        if stale.exists() {
+            fs::remove_dir_all(stale).with_context(|| format!("removing {}", stale.display()))?;
+        }
     }
     build_dir(&src)?;
+    build_dir(&dir.join("build"))?;
     let binds = vec![Bind::ro(archive, "/archive"), Bind::rw(&src, "/src")];
     sandbox(o, work, binds, Vec::new())
         .run(&format!("tar -xf /archive --strip-components={strip} -C /src"))
