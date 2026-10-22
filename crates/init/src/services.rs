@@ -45,6 +45,14 @@ pub const SERVICES: &[Service] = &[
         after: &[],
     },
     Service {
+        name: "setup",
+        path: "/usr/lib/neslina/neslina-setup",
+        args: &[],
+        restart: Restart::OnFailure,
+        // Its certificate is kept on the state disk when there is one.
+        after: &["disks"],
+    },
+    Service {
         name: "install",
         path: "/usr/lib/neslina/neslina-install",
         args: &[],

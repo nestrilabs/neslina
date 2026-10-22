@@ -1,5 +1,9 @@
 //! `neslina/setup.toml` on the boot medium: what the owner decided before the
-//! first boot. Today only the disks; the setup UI's password comes later.
+//! first boot. The setup UI's password, and the disks.
+//!
+//! ```toml
+//! password = "written by the image writer"   # replaced by password_hash on first login
+//! ```
 //!
 //! ```toml
 //! [disks]
@@ -13,27 +17,34 @@
 //! not. Without that, the host keeps running from the stick and leaves every
 //! internal disk alone.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::blockdev::Disk;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Setup {
+    /// The first-login password, as the image writer generated it.
+    pub password: Option<String>,
+    /// What replaces it once the owner sets their own (argon2, PHC string).
+    pub password_hash: Option<String>,
     pub disks: Option<Disks>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Disks {
     pub state: Select,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub games: Option<Select>,
 }
 
 /// One disk, by serial (stable) or kernel name (can change between boots).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Select {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub serial: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Required: an entry must say whether its disk may be erased.
     pub wipe: bool,

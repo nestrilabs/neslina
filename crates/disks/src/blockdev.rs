@@ -20,7 +20,8 @@ const BLKRPART: libc::c_ulong = 0x125F;
 /// or filesystem signature survives to confuse anything.
 const WIPE_BYTES: u64 = 2 << 20;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Transport {
     Nvme,
     Usb,
@@ -28,7 +29,7 @@ pub enum Transport {
     Other,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Disk {
     /// The kernel's name, `sda` or `nvme0n1`.
     pub name: String,

@@ -4,10 +4,11 @@
 //!
 //! The hostname is `neslina-` and the last four hex digits of the interface's
 //! MAC. It is set locally and sent to the DHCP server, so the host shows up in
-//! the router's client list.
+//! the router's client list, and answered over mDNS as `<hostname>.local`.
 
 mod dhcp;
 mod iface;
+mod mdns;
 
 use std::fs;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
@@ -53,8 +54,15 @@ fn run() -> Result<()> {
     let hostname = format!("neslina-{:02x}{:02x}", mac[4], mac[5]);
     sys::sethostname(&hostname).context("setting the hostname")?;
 
+    let mdns = match mdns::Responder::start(&hostname) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            warn!("no mDNS ({e}); the host is reachable by address only");
+            None
+        }
+    };
     let sock = dhcp_socket(&name)?;
-    let mut client = Client { sock, name, mac, hostname, xid: seed() };
+    let mut client = Client { sock, name, mac, hostname, xid: seed(), mdns };
     loop {
         let lease = client.acquire()?;
         client.apply(&lease)?;
@@ -120,6 +128,7 @@ struct Client {
     mac: [u8; 6],
     hostname: String,
     xid: u32,
+    mdns: Option<mdns::Responder>,
 }
 
 impl Client {
@@ -212,6 +221,9 @@ impl Client {
             iface::add_default_route(&self.name, gw).with_context(|| format!("adding a route via {gw}"))?;
         }
         write_resolv_conf(lease)?;
+        if let Some(m) = &self.mdns {
+            m.set_address(lease.ip);
+        }
         info!(
             "{}: {}/{} via {}, dns {}, lease {}s, hostname {}",
             self.name,

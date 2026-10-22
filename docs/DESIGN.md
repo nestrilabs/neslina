@@ -157,7 +157,10 @@ on all older hardware.
    (`neslina-<last 4 of MAC>`) to the DHCP server, and advertises
    `<hostname>.local` over mDNS.
 4. **Log in to setup.** The setup UI is served on the LAN. The first login
-   uses the password from the stick and forces a new one.
+   uses the password from the stick and can do nothing but set a new one, of
+   at least 12 characters. The new one is written back to the stick as an
+   argon2 hash in place of the original, so the stick keeps no readable
+   password. A `setup.toml` with no password leaves the setup UI off.
 5. **Review.** Setup shows what it detected (CPU, GPU, disks, network) and
    what it proposes. The owner assigns disk roles and confirms which disks it
    may wipe.
@@ -197,7 +200,22 @@ There is no static IP and no local network config. DHCP only.
 
 The setup UI is HTTPS only, with a self-signed certificate generated on first
 boot and kept on the state disk afterwards. The browser warns once, as it does
-for Unraid or Cockpit.
+for Unraid or Cockpit. Port 80 only redirects to it.
+
+The server is the `neslina-setup` service (`crates/setup`), a JSON API behind
+a session cookie (HttpOnly, Secure, SameSite=Strict). Assigning disks there
+writes the same `[disks]` entries `setup.toml` takes, with the same rules,
+then runs the disks service and the installer. So a host set up through the
+UI and one set up by a hand-written `setup.toml` end the same way.
+
+**Open:** the frontend. The page today is a working stand-in in plain HTML.
+The choice is between server-rendered HTML with a little plain JavaScript
+(no JS toolchain anywhere), or an app built once in CI and shipped as a pinned
+asset in the bundle.
+
+mDNS is answered by the net service: `<hostname>.local`, A records only. It
+is unit-tested but not yet tried on a real LAN; QEMU's user networking
+carries no multicast.
 
 ## 6. Building
 
