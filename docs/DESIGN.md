@@ -208,10 +208,20 @@ writes the same `[disks]` entries `setup.toml` takes, with the same rules,
 then runs the disks service and the installer. So a host set up through the
 UI and one set up by a hand-written `setup.toml` end the same way.
 
-**Open:** the frontend. The page today is a working stand-in in plain HTML.
-The choice is between server-rendered HTML with a little plain JavaScript
-(no JS toolchain anywhere), or an app built once in CI and shipped as a pinned
-asset in the bundle.
+The page is a SvelteKit app in `ui/`, TypeScript throughout, built fully
+static. Its types for the API are generated from the Rust structs with ts-rs
+(`cargo test` writes them to `ui/src/lib/types/`), so the two cannot drift
+without the UI's type check failing. It is built with Deno, from its lockfile,
+by `neslina bundle` on a dev machine or in CI, and the output goes into
+`source.erofs`; `neslina-setup` embeds it at compile time. A host never has a
+JavaScript toolchain, and the root image stays the only thing it runs.
+
+It follows the essentials of nestri.io's design system: the warm near-black
+field, a dashed grid column with crosses, Geist for text, Geist Mono for
+values, Departure Mono only for the host name and the buttons. Colour has
+jobs: orange for the one committing action (erase and install), blue for
+running state and focus, red for failure, no green. Erasing is confirmed by
+typing the disk names, not by a checkbox.
 
 mDNS is answered by the net service: `<hostname>.local`, A records only. It
 is unit-tested but not yet tried on a real LAN; QEMU's user networking

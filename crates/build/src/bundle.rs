@@ -2,8 +2,11 @@
 //!
 //! - `sysroot.erofs`: the toolchain, as `scripts/build-sysroot.sh` makes it.
 //! - `source.erofs`: `repo/` (this repository: recipes, kernel config,
-//!   neslina's own sources, and a `VERSION` file) and `store/` (exactly the
-//!   archives and vendored crates the recipes name).
+//!   neslina's own sources, a `VERSION` file, and the setup UI already built)
+//!   and `store/` (exactly the archives and vendored crates the recipes name).
+//!
+//! The setup UI is built here, with Deno, from its lockfile: a host never has
+//! a JavaScript toolchain, and `neslina-setup` embeds the built files.
 //!
 //! Both are read-only inputs to `neslina build`, so a host copies them to its
 //! state disk and mounts them; nothing is unpacked.
@@ -58,6 +61,21 @@ pub fn make(o: &Options) -> Result<()> {
         fs::copy(&src, &dst).with_context(|| format!("copying {}", rel.display()))?;
     }
     fs::write(repo.join("VERSION"), format!("{}\n", o.version))?;
+
+    println!("building the setup UI");
+    let ui = o.repo.join("ui");
+    for args in [&["install", "--frozen"][..], &["task", "build"][..]] {
+        let status = Command::new("deno")
+            .args(args)
+            .current_dir(&ui)
+            .stdout(std::process::Stdio::null())
+            .status()
+            .context("running deno; the setup UI is built with it")?;
+        if !status.success() {
+            bail!("deno {} failed in {}", args.join(" "), ui.display());
+        }
+    }
+    copy_tree(&ui.join("build"), &repo.join("ui/build"))?;
 
     println!("collecting sources");
     let store = Store { dir: o.store.clone() };

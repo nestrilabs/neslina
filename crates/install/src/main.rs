@@ -30,6 +30,8 @@ const SYSROOT_MOUNT: &str = "/run/neslina/sysroot";
 const SOURCE_MOUNT: &str = "/run/neslina/source";
 const MEDIUM_MOUNT: &str = "/run/neslina/medium-install";
 const BUNDLE: &[&str] = &["sysroot.erofs", "source.erofs"];
+/// Where the installer says what it is doing, for the setup UI.
+pub const STAGE: &str = "/run/neslina/install.stage";
 /// Lines of a failed build's log repeated in the kernel log.
 const LOG_TAIL: usize = 20;
 
@@ -39,6 +41,10 @@ fn main() {
         error!("{e:#}");
         std::process::exit(1);
     }
+}
+
+fn stage(name: &str) {
+    let _ = fs::write(STAGE, name);
 }
 
 fn run() -> Result<()> {
@@ -57,6 +63,7 @@ fn run() -> Result<()> {
     let home = Path::new(HOME);
     let install = home.join("install");
     fs::create_dir_all(&install)?;
+    stage("copy");
     let found = medium::with_mounted(&part, Path::new(MEDIUM_MOUNT), |dir| -> Result<bool> {
         if fs::read_to_string(dir.join("neslina/boot.conf")).is_ok_and(|c| c.contains("want=")) {
             return Ok(false);
@@ -73,6 +80,7 @@ fn run() -> Result<()> {
     })
     .context("mounting the boot medium")??;
     if !found {
+        let _ = fs::remove_file(STAGE);
         return Ok(());
     }
 
@@ -91,6 +99,7 @@ fn run() -> Result<()> {
     let version = fs::read_to_string(Path::new(SOURCE_MOUNT).join("repo/VERSION")).unwrap_or_default();
     info!("building slot {SLOT} natively from bundle {}; log in {}", version.trim(), log.display());
     let out = home.join("out");
+    stage("build");
     let log_file = File::create(&log)?;
     let status = Command::new("/usr/bin/neslina")
         .args(["--repo", &format!("{SOURCE_MOUNT}/repo"), "--store", &format!("{SOURCE_MOUNT}/store")])
@@ -109,11 +118,13 @@ fn run() -> Result<()> {
         for line in tail(&log, LOG_TAIL) {
             error!("{line}");
         }
+        stage("failed");
         return Ok(());
     }
     info!("built slot {SLOT}");
 
     let built = out.join(SLOT);
+    stage("place");
     medium::with_mounted_rw(&part, Path::new(MEDIUM_MOUNT), |dir| -> Result<()> {
         for ext in ["efi", "erofs"] {
             let name = format!("{SLOT}.{ext}");
@@ -127,6 +138,7 @@ fn run() -> Result<()> {
     })
     .context("mounting the boot medium writable")??;
     info!("slot {SLOT} is on the boot medium; handing over to the boot service");
+    stage("handover");
 
     // The boot service already ran this boot, before there was a slot to want.
     let status = Command::new("/usr/lib/neslina/neslina-boot").status().context("running the boot service")?;

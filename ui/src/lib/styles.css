@@ -1,0 +1,147 @@
+/*
+ * The essentials of nestri.io's design system (its docs/DESIGN-SYSTEM.md),
+ * not the whole of it: the warm near-black field, the grey steps, and colour
+ * that has a job.
+ *
+ *   brand   orange: the one committing action on a screen, and nothing else
+ *   accent  blue: "this is neslina", long-running state, focus
+ *   down    red: failures and errors, the only state with a hue
+ *
+ * No green at any step; it sits badly on this field. Text is never pure white.
+ */
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+@font-face {
+	font-family: 'Departure Mono';
+	src: url('/fonts/DepartureMono-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: block;
+}
+
+:root {
+	--color-background-100: hsl(20 14% 8%);
+	--color-background-200: hsl(20 14% 5%);
+	--color-background-300: hsl(20 14% 11%);
+
+	--color-gray-300: hsl(20 5% 16%);
+	--color-gray-600: hsl(20 5% 53%);
+	--color-gray-700: hsl(20 5% 56%);
+	--color-gray-900: hsl(20 5% 63%);
+	--color-gray-1000: hsl(20 5% 93%);
+
+	--color-gray-alpha-200: hsl(20 8% 98% / 0.09);
+	--color-gray-alpha-300: hsl(20 8% 98% / 0.13);
+	--color-gray-alpha-400: hsl(20 8% 98% / 0.14);
+	--color-gray-alpha-500: hsl(20 8% 98% / 0.24);
+
+	--color-brand: hsl(12 90% 53%);
+	--color-brand-hover: hsl(12 90% 60%);
+	--color-accent: hsl(206 100% 50%);
+	--color-down: hsl(358 100% 69%);
+
+	--color-border: var(--color-gray-300);
+	--color-foreground: var(--color-gray-1000);
+	--color-muted: var(--color-gray-900);
+
+	--font-sans: 'Geist Variable', Arial, sans-serif;
+	--font-mono: 'Geist Mono Variable', monospace;
+	/* Display only: the host name and the buttons, uppercased in CSS, never typed as capitals. */
+	--font-crt: 'Departure Mono', monospace;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--color-background-200);
+	color: var(--color-muted);
+	font-family: var(--font-sans);
+	font-size: 15px;
+	line-height: 1.55;
+	-webkit-font-smoothing: antialiased;
+}
+
+body {
+	margin: 0;
+}
+
+h1,
+h2,
+h3 {
+	color: var(--color-foreground);
+	font-weight: 500;
+	letter-spacing: -0.02em;
+	line-height: 1.2;
+	margin: 0 0 0.5em;
+}
+
+h2 {
+	font-size: 1.4rem;
+}
+
+h3 {
+	font-size: 1.05rem;
+}
+
+p {
+	margin: 0 0 1em;
+}
+
+strong {
+	color: var(--color-foreground);
+	font-weight: 500;
+}
+
+code {
+	color: var(--color-foreground);
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+}
+
+input[type='text'],
+input[type='password'] {
+	background: var(--color-background-100);
+	border: 0;
+	border-radius: 0;
+	box-shadow: 0 0 0 1px var(--color-gray-alpha-400);
+	color: var(--color-foreground);
+	font: inherit;
+	font-family: var(--font-mono);
+	padding: 0.55em 0.75em;
+	width: 100%;
+}
+
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 3px;
+}
+
+.error {
+	color: var(--color-down);
+}
+
+/* Micro-labels: chrome, never load-bearing, always aria-hidden. */
+.micro {
+	color: var(--color-gray-600);
+	font-family: var(--font-mono);
+	font-size: 10px;
+	letter-spacing: 0.08em;
+	opacity: 0.6;
+	text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition: none !important;
+		animation: none !important;
+	}
+}

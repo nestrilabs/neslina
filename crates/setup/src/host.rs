@@ -7,17 +7,25 @@ use neslina_common::sys::is_mountpoint;
 use neslina_disks::blockdev::{self, Disk};
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Serialize, ts_rs::TS)]
+#[ts(export)]
 pub struct Host {
     pub hostname: String,
     pub slot: String,
     pub version: String,
     pub cpu: String,
+    #[ts(type = "number")]
     pub threads: usize,
+    #[ts(type = "number")]
     pub memory_bytes: u64,
     pub disks: Vec<Disk>,
     /// Whether the state disk is set up and mounted.
     pub state_disk: bool,
+    /// What the installer is doing: copy, build, place, handover, failed.
+    /// Left out, not null, when it is doing nothing, as the TS type says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub install_stage: Option<String>,
 }
 
 fn first_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
@@ -42,5 +50,6 @@ pub fn read() -> Host {
             .map_or(0, |kb| kb * 1024),
         disks: blockdev::list().unwrap_or_default(),
         state_disk: is_mountpoint("/var"),
+        install_stage: fs::read_to_string("/run/neslina/install.stage").ok().map(|s| s.trim().to_owned()),
     }
 }

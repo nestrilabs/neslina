@@ -8,7 +8,8 @@ use std::sync::Mutex;
 use neslina_common::{error, info};
 use serde::Serialize;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(tag = "state", rename_all = "lowercase")]
 pub enum Job {
     Idle,
@@ -60,7 +61,11 @@ impl Runner {
                 self.set(Job::Running { step });
                 info!("running {step}");
                 match Command::new(path).status() {
-                    Ok(s) if s.success() => {}
+                    Ok(s) if s.success() => {
+                        if *step == "disks" {
+                            crate::tls::keep_on_state_disk();
+                        }
+                    }
                     Ok(s) => {
                         error!("{step} failed ({s})");
                         self.set(Job::Failed { step, reason: s.to_string() });

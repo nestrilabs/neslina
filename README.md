@@ -51,8 +51,11 @@ GPU stack are next. The plan is in [`docs/DESIGN.md`](docs/DESIGN.md).
 ## Trying it
 
 Builds run inside a prebuilt toolchain sysroot, in a sandbox with no network.
-Making the sysroot needs podman; building needs Rust; the VM needs QEMU, OVMF,
-mtools and util-linux.
+Making the sysroot needs podman; building needs Rust; the setup UI (`ui/`)
+needs Deno; the VM needs QEMU, OVMF, mtools and util-linux.
+
+To work on the setup UI, run a VM and `deno task dev` in `ui/`: the dev server
+proxies `/api` to the VM's setup server on port 8443.
 
 ```bash
 scripts/build-sysroot.sh

@@ -19,6 +19,7 @@ mod auth;
 mod config;
 mod host;
 mod job;
+mod static_files;
 mod tls;
 
 use std::fs::File;
@@ -30,7 +31,7 @@ use anyhow::{Context, Result};
 use axum::Router;
 use axum::extract::{Json, State};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use hyper_util::rt::TokioIo;
 use hyper_util::service::TowerToHyperService;
@@ -88,13 +89,13 @@ async fn run() -> Result<()> {
         runner: Default::default(),
     }));
     let router = Router::new()
-        .route("/", get(|| async { Html(include_str!("index.html")) }))
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
         .route("/api/password", post(change_password))
         .route("/api/state", get(state))
         .route("/api/disks", post(assign_disks))
         .route("/api/log", get(build_log))
+        .fallback(static_files::serve)
         .with_state(app);
 
     let https = TcpListener::bind("0.0.0.0:443").await.context("binding port 443")?;

@@ -20,6 +20,8 @@ serde_json = "1"
 tokio = { version = "1", features = ["rt", "net", "macros", "time", "sync"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
 toml = "0.9"
+include_dir = "0.7"
+ts-rs = "12"
 tower = { version = "0.5", features = ["util"] }
 neslina-common.workspace = true
 neslina-disks = { path = "../disks" }

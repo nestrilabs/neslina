@@ -30,21 +30,26 @@ pub struct Setup {
     pub disks: Option<Disks>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct Disks {
     pub state: Select,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub games: Option<Select>,
 }
 
 /// One disk, by serial (stable) or kernel name (can change between boots).
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct Select {
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub serial: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub name: Option<String>,
     /// Required: an entry must say whether its disk may be erased.
     pub wipe: bool,

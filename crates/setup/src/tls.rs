@@ -36,6 +36,24 @@ pub fn server_config(hostname: &str) -> Result<Arc<rustls::ServerConfig>> {
     Ok(Arc::new(config))
 }
 
+/// Once the state disk exists, keeps the certificate made in RAM there, so
+/// the browser does not warn a second time after the install reboots.
+pub fn keep_on_state_disk() {
+    let (from, to) = (Path::new("/run/neslina/tls"), Path::new("/var/neslina/tls"));
+    if !is_mountpoint("/var") || to.join("cert.pem").exists() || !from.join("cert.pem").exists() {
+        return;
+    }
+    let copied = fs::create_dir_all(to).and_then(|()| {
+        for f in ["cert.pem", "key.pem"] {
+            fs::copy(from.join(f), to.join(f))?;
+        }
+        Ok(())
+    });
+    if let Err(e) = copied {
+        neslina_common::warn!("keeping the certificate on the state disk: {e}");
+    }
+}
+
 fn generate(hostname: &str, dir: &Path, cert: &Path, key: &Path) -> Result<()> {
     fs::create_dir_all(dir)?;
     let names = vec![format!("{hostname}.local"), hostname.to_owned()];
